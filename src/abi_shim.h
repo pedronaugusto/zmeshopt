@@ -1,10 +1,10 @@
 /*
  * zmeshopt — prototypes for the caller-shape forwarders in abi_shim.c.
  *
- * Zig 0.16.0's self-hosted backends were measured (CI, 2026-09-02)
- * miscompiling two caller shapes upstream's ABI requires: an f32 argument
- * after more than 6 integer-class arguments (x86_64-linux) and an all-float
- * 16-byte struct return (x86_64-linux and aarch64-macos). Each forwarder
+ * Zig 0.16.0 was measured (CI, 2026-09-02) miscompiling two caller shapes
+ * upstream's ABI requires: an f32 argument after more than 6 integer-class
+ * arguments (self-hosted backend, x86_64-linux) and an all-float 16-byte
+ * struct return (both backends, x86_64-linux and aarch64-macos). Each forwarder
  * re-spells one affected function with its floats FIRST, or its struct
  * return as an out-parameter, and tail-calls upstream. Compiled by clang
  * regardless of the Zig backend, and called by the idiomatic layer on every

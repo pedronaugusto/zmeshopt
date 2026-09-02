@@ -1,6 +1,6 @@
-//! Runtime canaries for the two measured Zig 0.16.0 self-hosted-backend
-//! caller miscompiles (hosted CI, 2026-09-02): a float argument after more
-//! than 6 integer-class parameters, and an all-float 16-byte struct return.
+//! Runtime canaries for the two measured Zig 0.16.0 caller miscompiles
+//! (hosted CI, 2026-09-02): a float argument after more than 6
+//! integer-class parameters, and an all-float 16-byte struct return.
 //!
 //! `zmeshopt_canary_*` mirror the RAW upstream shapes and feed the toolchain
 //! watch: a comptime verdict table records what each measured (backend, OS)
@@ -42,32 +42,37 @@ extern fn zmeshopt_canary_shim_coverage(out: *c.analyze.CoverageStatistics, indi
 
 const Verdict = enum { exact, broken, unmeasured };
 
-// The verdict table: what each (backend, OS) pair was MEASURED to do with the
-// raw shapes. Every non-skip row comes from a hosted-CI or local run of the
-// mirrors above; extend it only with a new measurement, never by analogy.
+// The verdict tables: what each (backend, OS) pair was MEASURED to do with
+// the raw shapes — hosted CI for linux and macos, local runs for windows.
+// Extend only with a new measurement, never by analogy. macos Debug compiles
+// with stage2_llvm (probed; the aarch64 self-hosted backend is not a default
+// anywhere), so no stage2_aarch64 pair has ever been measured here.
 const late_float_verdict: Verdict = switch (builtin.zig_backend) {
-    .stage2_llvm => .exact,
+    .stage2_llvm => switch (builtin.os.tag) {
+        .linux, .macos, .windows => .exact,
+        else => .unmeasured,
+    },
     .stage2_x86_64 => switch (builtin.os.tag) {
         .windows => .exact,
         .linux => .broken,
-        else => .unmeasured,
-    },
-    .stage2_aarch64 => switch (builtin.os.tag) {
-        .macos => .exact,
         else => .unmeasured,
     },
     else => .unmeasured,
 };
 
+// Measured broken under BOTH backends on x86_64-linux and under stage2_llvm
+// on aarch64-macos; measured exact under both on windows, whose ABI returns
+// a 16-byte struct through a hidden pointer rather than the float registers
+// the other ABIs use.
 const struct_return_verdict: Verdict = switch (builtin.zig_backend) {
-    .stage2_llvm => .exact,
+    .stage2_llvm => switch (builtin.os.tag) {
+        .windows => .exact,
+        .linux, .macos => .broken,
+        else => .unmeasured,
+    },
     .stage2_x86_64 => switch (builtin.os.tag) {
         .windows => .exact,
         .linux => .broken,
-        else => .unmeasured,
-    },
-    .stage2_aarch64 => switch (builtin.os.tag) {
-        .macos => .broken,
         else => .unmeasured,
     },
     else => .unmeasured,
