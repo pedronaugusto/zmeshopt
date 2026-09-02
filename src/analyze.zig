@@ -7,6 +7,7 @@
 const std = @import("std");
 const c = @import("c.zig").analyze;
 const contract = @import("contract.zig");
+const shim = @import("shim.zig");
 
 pub const VertexCacheStatistics = c.VertexCacheStatistics;
 pub const VertexFetchStatistics = c.VertexFetchStatistics;
@@ -36,7 +37,11 @@ pub fn analyzeOverdraw(comptime V: type, indices: []const u32, vertices: []const
 /// rasterizer.
 pub fn analyzeCoverage(comptime V: type, indices: []const u32, vertices: []const V) CoverageStatistics {
     contract.checkVertex(V, 3);
-    return c.meshopt_analyzeCoverage(indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V));
+    // Out-parameter crossing via src/abi_shim.c: the all-float by-value
+    // return is a measured self-hosted-backend miscompile (src/shim.zig).
+    var stats: CoverageStatistics = undefined;
+    shim.zmeshopt_shim_analyzeCoverage(&stats, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V));
+    return stats;
 }
 
 test analyzeVertexCache {

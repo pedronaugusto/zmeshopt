@@ -9,6 +9,9 @@ const std = @import("std");
 const assert = std.debug.assert;
 const c = @import("c.zig").clusterize;
 const contract = @import("contract.zig");
+// The three position-aware builders have a late float; they cross through
+// src/abi_shim.c on every backend (src/shim.zig has the measurement).
+const shim = @import("shim.zig");
 
 pub const Meshlet = c.Meshlet;
 pub const Bounds = c.Bounds;
@@ -36,7 +39,7 @@ fn checkBuildBuffers(meshlet_vertices: []u32, meshlet_triangles: []u8, index_cou
 pub fn buildMeshlets(comptime V: type, meshlets: []Meshlet, meshlet_vertices: []u32, meshlet_triangles: []u8, indices: []const u32, vertices: []const V, max_vertices: usize, max_triangles: usize, cone_weight: f32) []Meshlet {
     contract.checkVertex(V, 3);
     checkBuildBuffers(meshlet_vertices, meshlet_triangles, indices.len, max_vertices, max_triangles);
-    const n = c.meshopt_buildMeshlets(meshlets.ptr, meshlet_vertices.ptr, meshlet_triangles.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), max_vertices, max_triangles, cone_weight);
+    const n = shim.zmeshopt_shim_buildMeshlets(cone_weight, meshlets.ptr, meshlet_vertices.ptr, meshlet_triangles.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), max_vertices, max_triangles);
     return meshlets[0..n];
 }
 
@@ -61,7 +64,7 @@ pub fn buildMeshletsFlex(comptime V: type, meshlets: []Meshlet, meshlet_vertices
     contract.checkVertex(V, 3);
     assert(min_triangles <= max_triangles);
     checkBuildBuffers(meshlet_vertices, meshlet_triangles, indices.len, max_vertices, max_triangles);
-    const n = c.meshopt_buildMeshletsFlex(meshlets.ptr, meshlet_vertices.ptr, meshlet_triangles.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), max_vertices, min_triangles, max_triangles, cone_weight, split_factor);
+    const n = shim.zmeshopt_shim_buildMeshletsFlex(cone_weight, split_factor, meshlets.ptr, meshlet_vertices.ptr, meshlet_triangles.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), max_vertices, min_triangles, max_triangles);
     return meshlets[0..n];
 }
 
@@ -71,7 +74,7 @@ pub fn buildMeshletsSpatial(comptime V: type, meshlets: []Meshlet, meshlet_verti
     contract.checkVertex(V, 3);
     assert(min_triangles <= max_triangles);
     checkBuildBuffers(meshlet_vertices, meshlet_triangles, indices.len, max_vertices, max_triangles);
-    const n = c.meshopt_buildMeshletsSpatial(meshlets.ptr, meshlet_vertices.ptr, meshlet_triangles.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), max_vertices, min_triangles, max_triangles, fill_weight);
+    const n = shim.zmeshopt_shim_buildMeshletsSpatial(fill_weight, meshlets.ptr, meshlet_vertices.ptr, meshlet_triangles.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), max_vertices, min_triangles, max_triangles);
     return meshlets[0..n];
 }
 

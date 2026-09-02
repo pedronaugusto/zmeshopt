@@ -15,9 +15,11 @@
 
 const std = @import("std");
 const c = @import("c.zig");
+const shim = @import("shim.zig");
 
 const h = @cImport({
     @cInclude("meshoptimizer.h");
+    @cInclude("abi_shim.h");
 });
 
 //=============================================================================
@@ -60,8 +62,8 @@ fn fail(comptime msg: []const u8) void {
 
 fn theirDecl(comptime name: []const u8, comptime because: []const u8) type {
     if (!@hasDecl(h, name)) {
-        fail("`" ++ because ++ "` in src/c/ expects `" ++ name ++
-            "` in meshoptimizer.h, which does not declare it");
+        fail("`" ++ because ++ "` expects `" ++ name ++
+            "` from the C headers, which do not declare it");
     }
     return @TypeOf(@field(h, name));
 }
@@ -73,13 +75,13 @@ fn sameSizeAndAlign(
 ) void {
     if (@sizeOf(Ours) != @sizeOf(Theirs)) {
         fail(what ++ " is " ++ std.fmt.comptimePrint("{d}", .{@sizeOf(Ours)}) ++
-            " bytes in src/c/ but " ++ std.fmt.comptimePrint("{d}", .{@sizeOf(Theirs)}) ++
-            " in meshoptimizer.h");
+            " bytes on the Zig side but " ++ std.fmt.comptimePrint("{d}", .{@sizeOf(Theirs)}) ++
+            " in the C header");
     }
     if (@alignOf(Ours) != @alignOf(Theirs)) {
         fail(what ++ " has alignment " ++ std.fmt.comptimePrint("{d}", .{@alignOf(Ours)}) ++
-            " in src/c/ but " ++ std.fmt.comptimePrint("{d}", .{@alignOf(Theirs)}) ++
-            " in meshoptimizer.h");
+            " on the Zig side but " ++ std.fmt.comptimePrint("{d}", .{@alignOf(Theirs)}) ++
+            " in the C header");
     }
 }
 
@@ -131,9 +133,9 @@ fn sameScalar(
             checkFnType(what ++ " (callback)", OursFn, TheirsFn);
             return;
         }
-        fail(what ++ " is a function pointer in src/c/ but not in meshoptimizer.h");
+        fail(what ++ " is a function pointer on the Zig side but not in the C header");
     } else if (fnPointee(Theirs) != null) {
-        fail(what ++ " is a function pointer in meshoptimizer.h but not in src/c/");
+        fail(what ++ " is a function pointer in the C header but not on the Zig side");
     }
 
     const oi = @typeInfo(scalarIdentity(Ours));
@@ -149,12 +151,12 @@ fn sameScalar(
     if (!across_enum and oi == .int and ti == .int and
         oi.int.signedness != ti.int.signedness)
     {
-        fail(what ++ " is " ++ @tagName(oi.int.signedness) ++ " in src/c/ but " ++
-            @tagName(ti.int.signedness) ++ " in meshoptimizer.h");
+        fail(what ++ " is " ++ @tagName(oi.int.signedness) ++ " on the Zig side but " ++
+            @tagName(ti.int.signedness) ++ " in the C header");
     }
     if ((oi == .int) != (ti == .int) or (oi == .float) != (ti == .float)) {
-        fail(what ++ " is a " ++ @tagName(oi) ++ " in src/c/ but a " ++
-            @tagName(ti) ++ " in meshoptimizer.h");
+        fail(what ++ " is a " ++ @tagName(oi) ++ " on the Zig side but a " ++
+            @tagName(ti) ++ " in the C header");
     }
 }
 
@@ -171,16 +173,16 @@ fn checkFnType(
 
     if (ours.params.len != theirs.params.len) {
         fail(what ++ " takes " ++ std.fmt.comptimePrint("{d}", .{ours.params.len}) ++
-            " parameters in src/c/ but " ++ std.fmt.comptimePrint("{d}", .{theirs.params.len}) ++
-            " in meshoptimizer.h");
+            " parameters on the Zig side but " ++ std.fmt.comptimePrint("{d}", .{theirs.params.len}) ++
+            " in the C header");
     }
     if (ours.is_var_args != theirs.is_var_args) {
         fail(what ++ " is variadic on one side of the boundary only");
     }
 
     inline for (ours.params, theirs.params, 0..) |op, tp, i| {
-        const OP = op.type orelse fail(what ++ " has an untyped parameter in src/c/");
-        const TP = tp.type orelse fail(what ++ " has an untyped parameter in meshoptimizer.h");
+        const OP = op.type orelse fail(what ++ " has an untyped parameter on the Zig side");
+        const TP = tp.type orelse fail(what ++ " has an untyped parameter in the C header");
         sameScalar(
             what ++ " parameter " ++ std.fmt.comptimePrint("{d}", .{i}),
             OP,
@@ -188,8 +190,8 @@ fn checkFnType(
         );
     }
 
-    const OR = ours.return_type orelse fail(what ++ " has no return type in src/c/");
-    const TR = theirs.return_type orelse fail(what ++ " has no return type in meshoptimizer.h");
+    const OR = ours.return_type orelse fail(what ++ " has no return type on the Zig side");
+    const TR = theirs.return_type orelse fail(what ++ " has no return type in the C header");
     sameScalar(what ++ " return value", OR, TR);
 }
 
@@ -201,10 +203,10 @@ fn checkFnType(
 // preceded by MORE than 6 integer-class arguments, on x86_64-linux where
 // that backend is the Debug default. meshoptimizer's ABI is upstream's, and
 // 8 of its functions have exactly that shape, so this package cannot forbid
-// them. It classifies them, pins the count so a re-vendor that adds one is a
-// conscious act, and proves the caller side at RUNTIME:
-// `late_float_canary_test.zig` calls test-only C mirrors of each shape and
-// asserts every argument arrives bit-exact, on every CI target and backend.
+// them; the idiomatic layer crosses them through `src/abi_shim.c` instead.
+// This sweep classifies them and pins the count, so a re-vendor that adds
+// one is a conscious act of extending the shim; `abi_canary_test.zig`
+// proves both the raw hazard and the shim shapes at runtime.
 //=============================================================================
 
 const max_int_class_params_before_float = 6;
@@ -505,6 +507,32 @@ fn sweepTheirs() usize {
     }
 }
 
+/// The shim seam: src/shim.zig's externs against src/abi_shim.h, both ways.
+/// The forwarders exist to dodge a measured backend miscompile, so a drifted
+/// shim signature would corrupt exactly the calls it is there to protect.
+fn sweepShim() usize {
+    comptime {
+        var found: usize = 0;
+        for (@typeInfo(shim).@"struct".decls) |d| {
+            const Decl = @TypeOf(@field(shim, d.name));
+            if (@typeInfo(Decl) != .@"fn") continue;
+            const what = "shim function " ++ d.name;
+            _ = theirDecl(d.name, what);
+            checkFnType(what, Decl, @TypeOf(@field(h, d.name)));
+            found += 1;
+        }
+        for (@typeInfo(h).@"struct".decls) |d| {
+            if (!std.mem.startsWith(u8, d.name, "zmeshopt_shim_")) continue;
+            if (@typeInfo(@TypeOf(@field(h, d.name))) != .@"fn") continue;
+            if (!@hasDecl(shim, d.name)) {
+                fail("src/abi_shim.h declares `" ++ d.name ++ "` but src/shim.zig " ++
+                    "does not bind it, so the forwarder is unreachable from Zig");
+            }
+        }
+        return found;
+    }
+}
+
 //=============================================================================
 // The test
 //
@@ -530,7 +558,11 @@ test "ABI: src/c/ agrees with meshoptimizer.h, and binds all of it" {
 
     // The 8 upstream signatures passing a float after more than 6
     // integer-class parameters (see the Late-float section above). Pinned
-    // exactly: a re-vendor that adds one must extend
-    // `late_float_canary_test.zig` and this count together.
+    // exactly: a re-vendor that adds one must extend `src/abi_shim.c`,
+    // `abi_canary_test.zig` and this count together.
     try std.testing.expectEqual(@as(usize, 8), ours.late_float_fns);
+
+    // Those 8, plus the all-float-struct-return forwarder for
+    // `meshopt_analyzeCoverage` — the shim seam checked by sweepShim.
+    try std.testing.expectEqual(@as(usize, 9), comptime sweepShim());
 }

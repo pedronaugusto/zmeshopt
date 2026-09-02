@@ -4,4 +4,17 @@
 # on an extern that is neither called from the idiomatic layer nor listed
 # here, and on a line here for an extern the layer DOES call.
 #
-# (empty: every extern has an idiomatic caller)
+# (every row below is a shim reroute, not a coverage gap)
+#
+# These 9 cross through src/abi_shim.c instead of the raw extern: their
+# caller shapes are the two measured self-hosted-backend miscompiles
+# (src/shim.zig has the measurement and the retirement gate).
+meshopt_simplify	rerouted through zmeshopt_shim_simplify in src/abi_shim.c
+meshopt_simplifyWithAttributes	rerouted through zmeshopt_shim_simplifyWithAttributes in src/abi_shim.c
+meshopt_simplifyWithUpdate	rerouted through zmeshopt_shim_simplifyWithUpdate in src/abi_shim.c
+meshopt_simplifySloppy	rerouted through zmeshopt_shim_simplifySloppy in src/abi_shim.c
+meshopt_buildMeshlets	rerouted through zmeshopt_shim_buildMeshlets in src/abi_shim.c
+meshopt_buildMeshletsFlex	rerouted through zmeshopt_shim_buildMeshletsFlex in src/abi_shim.c
+meshopt_buildMeshletsSpatial	rerouted through zmeshopt_shim_buildMeshletsSpatial in src/abi_shim.c
+meshopt_opacityMapMeasure	rerouted through zmeshopt_shim_opacityMapMeasure in src/abi_shim.c
+meshopt_analyzeCoverage	rerouted through zmeshopt_shim_analyzeCoverage in src/abi_shim.c

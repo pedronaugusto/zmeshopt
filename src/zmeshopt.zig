@@ -208,7 +208,7 @@ test version {
 
 test {
     _ = @import("abi_check.zig");
-    _ = @import("late_float_canary_test.zig");
+    _ = @import("abi_canary_test.zig");
     _ = remap_area;
     _ = cache_area;
     _ = index_codec_area;

@@ -12,11 +12,15 @@ mesh indexing, optimization, simplification, compression, and cluster
   experimental surface included, marked as such — and completeness is a
   compile-time property, not a promise: the ABI cross-check's reverse sweep
   fails the build over an unbound header function.
-- **No shim.** Upstream's public surface is `extern "C"` in one pure-C
-  header, so the hand-written Zig externs mirror it directly and drift
-  between them is a **build failure**, not a memory-corruption bug: every
-  struct field, signature, enumerator and flag bit is cross-checked at
-  comptime, with no hand-kept list of what to check.
+- **The header is the ABI.** Upstream's public surface is `extern "C"` in
+  one pure-C header, so the hand-written Zig externs mirror it directly and
+  drift between them is a **build failure**, not a memory-corruption bug:
+  every struct field, signature, enumerator and flag bit is cross-checked at
+  comptime, with no hand-kept list of what to check. The one C file in
+  `src/` is a small ABI shim dodging two measured Zig-backend caller
+  miscompiles — itself gate-checked, canary-watched, and scheduled for
+  retirement by a failing test rather than by memory (see
+  [The ABI guard](#the-abi-guard)).
 - An idiomatic slice-based layer over all of it — counts derived from slice
   lengths, `comptime`-typed vertex streams, error unions where upstream
   signals through return codes — plus host allocator injection: upstream's
@@ -176,12 +180,17 @@ four mutations against the coverage gate. It runs on the Itanium ABI and on
 MSVC's as separate CI jobs, because the header is compared *as preprocessed
 for a target* and a C enum's type differs between the two.
 
-One hazard is measured rather than checked: a known Zig 0.16.0 backend
-miscompilation of a specific parameter shape (a float after many
-integer-class parameters — upstream has such functions). The oracle pins the
-affected count, and a runtime canary calls a C mirror of each affected
-signature asserting every argument arrives bit-exact. See
-[BINDING.md](BINDING.md).
+One class of hazard lives below anything a declaration can express: Zig
+0.16.0's self-hosted backends were measured — by this repo's own CI —
+miscompiling two CALLER shapes upstream's ABI requires (a float passed after
+many integer-class parameters; an all-float small-struct return). The
+affected functions cross through `src/abi_shim.c`, clang-compiled forwarders
+that re-spell each shape into a measured-safe one, on every backend — one
+code path, tested everywhere. Runtime canaries hard-assert the shim path
+argument for argument, and a toolchain watch asserts the raw shapes stay
+broken where they were measured broken, so a Zig release that fixes a
+backend fails the watch — the signal to retire the shim rather than
+fossilise it. See [BINDING.md](BINDING.md).
 
 ### Build hygiene
 
@@ -236,11 +245,11 @@ artifact are each driven by a real consumer there.
 | **85** | upstream C entry points (`MESHOPTIMIZER_API`/`_EXPERIMENTAL` in the vendored header) |
 | **85** | Zig externs (`pub extern fn` in `src/c/*.zig`) |
 | **8** | of them marked experimental by upstream, bound and labelled |
-| **63** | Zig tests `zig build test` executes |
+| **66** | Zig tests `zig build test` executes |
 | **8** | assertions in the standalone C smoke test |
 | **20** | vendored meshoptimizer translation units `build.zig` compiles |
-| **3476** | Zig source lines (`src/`) |
-| **20** | deliberate drifts `ci/check-abi-drift.sh` must refuse |
+| **3699** | Zig source lines (`src/`) |
+| **22** | deliberate drifts `ci/check-abi-drift.sh` must refuse |
 | **23** | steps `ci/run.sh` runs |
 | **7** | further targets `ci/run.sh` cross-compiles |
 <!-- END GENERATED -->
