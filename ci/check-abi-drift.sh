@@ -264,12 +264,14 @@ expect 'expected 9, found 8' \
 'try std.testing.expectEqual(@as(usize, 9), ours.late_float_fns);'
 
 # The canary harness itself: a mirror that echoes the wrong value must fail
-# the comparison, or the canary proves nothing about argument arrival. Runs
-# on an arm the verdict table calls exact, where the watch hard-asserts.
-expect 'toolchain watch: raw late-float' \
+# the comparison, or the canary proves nothing about argument arrival. The
+# mutated mirror is a SHIM one — hard-asserted on every backend, so this
+# catches on every drift arm; a raw mirror would be absorbed on an arm whose
+# verdict is broken, where the watch tolerates mismatches by design.
+expect 'shim canary: zmeshopt_shim_simplify' \
   "a canary mirror echoing a wrong value" tests/abi_canary.c \
-'    slots[7] = (double)target_error;' \
-'    slots[7] = (double)target_error + 1;'
+'    slots[0] = (double)target_error;' \
+'    slots[0] = (double)target_error + 1;'
 
 # The shim seam. The forwarders exist to dodge a measured backend
 # miscompile, so a shim signature drifting from its prototype would corrupt
