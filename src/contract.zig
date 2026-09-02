@@ -12,15 +12,12 @@ const std = @import("std");
 /// not lead the vertex layout can always call the raw externs under `c`.
 pub fn checkVertex(comptime V: type, comptime leading_floats: usize) void {
     comptime {
-        if (@sizeOf(V) < leading_floats * @sizeOf(f32)) @compileError(
-            "zmeshopt: " ++ @typeName(V) ++ " is smaller than the " ++
-                "leading floats this function reads from each vertex");
-        if (@sizeOf(V) % 4 != 0) @compileError(
-            "zmeshopt: " ++ @typeName(V) ++ "'s size is not a multiple of 4, " ++
-                "which meshoptimizer requires of every vertex stride");
-        if (@alignOf(V) < @alignOf(f32)) @compileError(
-            "zmeshopt: " ++ @typeName(V) ++ " is under-aligned for the f32 " ++
-                "reads meshoptimizer performs on it");
+        if (@sizeOf(V) < leading_floats * @sizeOf(f32)) @compileError("zmeshopt: " ++ @typeName(V) ++ " is smaller than the " ++
+            "leading floats this function reads from each vertex");
+        if (@sizeOf(V) % 4 != 0) @compileError("zmeshopt: " ++ @typeName(V) ++ "'s size is not a multiple of 4, " ++
+            "which meshoptimizer requires of every vertex stride");
+        if (@alignOf(V) < @alignOf(f32)) @compileError("zmeshopt: " ++ @typeName(V) ++ " is under-aligned for the f32 " ++
+            "reads meshoptimizer performs on it");
     }
 }
 

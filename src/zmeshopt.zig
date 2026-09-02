@@ -2,10 +2,9 @@
 //!
 //! Three layers, thinnest first:
 //!
-//!   * `c` — the raw externs, one module per header region, mirroring
-//!     `libs/meshoptimizer/src/meshoptimizer.h` exactly. Everything upstream
-//!     exports is here; `src/abi_check.zig`'s reverse sweep fails the build
-//!     if a header function ever is not.
+//!   * `c` — the raw externs, one module per header region, mirroring the
+//!     vendored `meshoptimizer.h` exactly; `src/abi_check.zig`'s reverse
+//!     sweep fails the build if a header function is ever missing.
 //!   * The idiomatic layer — slice-based wrappers in the per-area files
 //!     (`src/remap.zig`, `src/simplify.zig`, …), re-exported flat below
 //!     under upstream's names minus the `meshopt_` prefix, plus the
@@ -15,7 +14,11 @@
 //!     caller never has to spell `c.simplify.…`.
 
 const std = @import("std");
-const options = @import("zmeshopt_options");
+
+/// How the C++ half was built (`shared`, `sanitize_c`, `simd`) plus the
+/// package version — the build options module, re-exported so a consumer
+/// can branch on it without plumbing a second module import.
+pub const options = @import("zmeshopt_options");
 
 pub const c = @import("c.zig");
 

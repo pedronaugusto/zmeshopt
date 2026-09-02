@@ -1,0 +1,4 @@
+# Multi-digit numbers a document may state outside a generated block, one per
+# line as NUMBER<TAB>REASON. ci/check-docs.sh refuses any number not listed
+# here and any entry no document uses. Empty is the healthy state: a number
+# that belongs to the tree belongs in a generated block instead.

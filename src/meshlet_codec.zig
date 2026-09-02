@@ -34,10 +34,8 @@ pub fn encodeMeshletBound(max_vertices: usize, max_triangles: usize) usize {
 /// `vertices.len` and `triangles.len` are the exact counts. Safe on
 /// untrusted input, but may produce garbage data.
 pub fn decodeMeshlet(comptime I: type, comptime T: type, vertices: []align(4) I, triangles: []align(4) T, buffer: []const u8) DecodeError!void {
-    comptime if (I != u16 and I != u32) @compileError(
-        "zmeshopt: the meshlet codec decodes vertex references to u16 or u32, not " ++ @typeName(I));
-    comptime if (T != [3]u8 and T != u32) @compileError(
-        "zmeshopt: the meshlet codec decodes triangles to [3]u8 or packed u32, not " ++ @typeName(T));
+    comptime if (I != u16 and I != u32) @compileError("zmeshopt: the meshlet codec decodes vertex references to u16 or u32, not " ++ @typeName(I));
+    comptime if (T != [3]u8 and T != u32) @compileError("zmeshopt: the meshlet codec decodes triangles to [3]u8 or packed u32, not " ++ @typeName(T));
     if (c.meshopt_decodeMeshlet(if (vertices.len == 0) null else vertices.ptr, vertices.len, @sizeOf(I), triangles.ptr, triangles.len, @sizeOf(T), buffer.ptr, buffer.len) != 0)
         return error.Malformed;
 }

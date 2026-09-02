@@ -32,9 +32,8 @@ pub fn decodeFilterQuat(comptime E: type, buffer: []E) void {
 /// Decodes exponential floating-point encoding (`2^E*M`) in place, each
 /// 32-bit component in isolation; the element size must be divisible by 4.
 pub fn decodeFilterExp(comptime E: type, buffer: []E) void {
-    comptime if (@sizeOf(E) % 4 != 0) @compileError(
-        "zmeshopt: the exponential filter needs an element size divisible " ++
-            "by 4, not " ++ @typeName(E) ++ "'s");
+    comptime if (@sizeOf(E) % 4 != 0) @compileError("zmeshopt: the exponential filter needs an element size divisible " ++
+        "by 4, not " ++ @typeName(E) ++ "'s");
     c.meshopt_decodeFilterExp(buffer.ptr, buffer.len, @sizeOf(E));
 }
 

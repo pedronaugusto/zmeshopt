@@ -43,8 +43,7 @@ pub fn encodeIndexVersion(version: IndexCodecVersion) void {
 /// untrusted input, but decoded indices may still be garbage — validate
 /// against the vertex count.
 pub fn decodeIndexBuffer(comptime I: type, destination: []I, buffer: []const u8) DecodeError!void {
-    comptime if (I != u16 and I != u32) @compileError(
-        "zmeshopt: the index codec decodes to u16 or u32, not " ++ @typeName(I));
+    comptime if (I != u16 and I != u32) @compileError("zmeshopt: the index codec decodes to u16 or u32, not " ++ @typeName(I));
     if (c.meshopt_decodeIndexBuffer(destination.ptr, destination.len, @sizeOf(I), buffer.ptr, buffer.len) != 0)
         return error.Malformed;
 }
@@ -72,8 +71,7 @@ pub fn encodeIndexSequenceBound(index_count: usize, vertex_count: usize) usize {
 /// Decodes an encoded index sequence into `u16` or `u32` indices. Safe on
 /// untrusted input, but decoded indices may still be garbage.
 pub fn decodeIndexSequence(comptime I: type, destination: []I, buffer: []const u8) DecodeError!void {
-    comptime if (I != u16 and I != u32) @compileError(
-        "zmeshopt: the index codec decodes to u16 or u32, not " ++ @typeName(I));
+    comptime if (I != u16 and I != u32) @compileError("zmeshopt: the index codec decodes to u16 or u32, not " ++ @typeName(I));
     if (c.meshopt_decodeIndexSequence(destination.ptr, destination.len, @sizeOf(I), buffer.ptr, buffer.len) != 0)
         return error.Malformed;
 }

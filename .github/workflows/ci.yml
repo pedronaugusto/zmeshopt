@@ -1,0 +1,195 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  ZIG_VERSION: 0.16.0
+
+jobs:
+  # The full suite, executed on every supported host. `ci/run.sh` mirrors these
+  # steps locally; they are spelled out here so each one reports its own status.
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+
+      # Only our own sources: libs/meshoptimizer is vendored verbatim and
+      # reformatting it would make the next re-vendor an unreadable diff.
+      - name: Formatting
+        run: zig fmt --check src examples tests/consumer build.zig
+
+      # Zig's C undefined-behaviour sanitizer is opt-in — a library must not
+      # force its runtime into a consumer's link — so zmeshopt's own Debug run
+      # asks for it explicitly.
+      - name: Test — Debug, sanitizer on
+        run: zig build test -Doptimize=Debug -Dsanitize_c=true
+
+      - name: Test — Debug, sanitizer off
+        run: zig build test -Doptimize=Debug -Dsanitize_c=false
+
+      - name: Test — ReleaseSafe
+        run: zig build test -Doptimize=ReleaseSafe -Dsanitize_c=false
+
+      - name: Test — ReleaseFast
+        run: zig build test -Doptimize=ReleaseFast -Dsanitize_c=false
+
+      - name: Test — ReleaseSmall
+        run: zig build test -Doptimize=ReleaseSmall -Dsanitize_c=false
+
+      # The C boundary on its own, with no Zig in the picture — the installed
+      # header is a real C contract, not a private detail of the wrapper.
+      - name: Test — C ABI standalone
+        run: zig build test-c
+
+      # -Dsimd=false selects upstream's scalar codec paths (codegen-only, no
+      # ABI effect); every step above compiles the SIMD ones instead.
+      - name: Test — scalar codecs (-Dsimd=false)
+        run: zig build test -Dsimd=false -Doptimize=Debug -Dsanitize_c=true
+
+      # Zig's default ABI for Windows is gnu, so every step above exercises
+      # that one and the MSVC branches in build.zig would never be built at
+      # all. On a Windows runner the MSVC ABI is native, so the suite can run
+      # there too rather than merely compile.
+      - name: Test — Windows MSVC ABI
+        if: runner.os == 'Windows'
+        run: zig build test -Dtarget=x86_64-windows-msvc -Dsanitize_c=false
+
+      # Consuming zmeshopt through `b.dependency` is a different code path from
+      # building it: artifacts resolve by scanning the dependency's install
+      # step, and headers by their installed spelling. Neither is exercised by
+      # anything in src/ or tests/, so both can break while the suite above
+      # stays green. See tests/consumer/build.zig.
+      - name: Consumer — Zig module and C artifact
+        run: zig build --build-file tests/consumer/build.zig run
+
+  # The guards that back this package's claims about itself: every extern has
+  # an idiomatic caller or a reasoned excuse, both directions; comment blocks
+  # stay short and stay out of the narrative register; every script is
+  # executable; and ci/run.sh really mirrors this file. All cheap, none needs
+  # a build, so they share one job.
+  hygiene:
+    name: hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Comment standard
+        run: ci/check-comments.sh
+      - name: Coverage — Zig surface, both directions
+        run: ci/check-coverage.sh
+      - name: Every committed script is executable
+        run: ci/check-executable.sh
+      - name: ci/run.sh mirrors this workflow
+        run: ci/check-mirror.sh
+
+  # Compile-only coverage of the targets the suite cannot execute on. These
+  # prove the sources and build graph are portable; the `test` job above is
+  # what proves behaviour.
+  cross-compile:
+    name: cross (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-linux-gnu
+          - aarch64-linux-gnu
+          - x86_64-linux-musl
+          - x86_64-windows-gnu
+          - aarch64-windows-gnu
+          - x86_64-macos
+          - aarch64-macos
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+      - run: zig build -Dtarget=${{ matrix.target }}
+
+  # Every number README.md and UPSTREAM.md publish, recomputed from the tree
+  # and compared against what is committed — and no other number allowed to be
+  # written by hand. It builds (the test count is what the build reports), so
+  # it cannot join the hygiene job above.
+  docs:
+    name: documented numbers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+      - run: ci/check-docs.sh
+
+  # Mutation test for the ABI cross-check in src/abi_check.zig. That check is
+  # the one test here that cannot test itself — a refactor making it vacuous
+  # looks exactly like a passing build — so this deliberately drifts the
+  # externs against the header every way the script lists, and asserts each
+  # one is refused. Its own job because it rebuilds once per mutation.
+  abi-drift:
+    name: ABI drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+      - run: ci/check-abi-drift.sh
+
+  # The same proof under the other ABI. src/abi_check.zig compares src/c/*.zig
+  # against `@cImport` of the header as preprocessed FOR A TARGET, so a guard
+  # proved to fire on the Itanium ABI is not proved to fire on MSVC's — where
+  # a C enum is `int` rather than `unsigned int`, and meshopt_EncodeExpMode
+  # crosses in signatures. Windows-hosted because building for the MSVC ABI
+  # needs Microsoft's own headers.
+  abi-drift-msvc:
+    name: ABI drift (MSVC ABI)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+      - run: ci/check-abi-drift.sh -Dtarget=x86_64-windows-msvc
+        shell: bash
+
+  # Build options that change what the C++ compiles to, so a regression in one
+  # configuration cannot hide behind the defaults.
+  configurations:
+    name: build configurations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+      - name: Shared library
+        run: zig build -Dshared=true
+
+  # Proves libs/ is still a pristine copy of the pinned upstream commit, rather
+  # than a claim in a markdown file. Needs network, so it is its own job and is
+  # not part of the local inner loop.
+  vendor-integrity:
+    name: vendor integrity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ci/verify-vendor.sh
