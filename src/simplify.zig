@@ -9,6 +9,11 @@ const std = @import("std");
 const assert = std.debug.assert;
 const c = @import("c.zig").simplify;
 const contract = @import("contract.zig");
+// The four simplifiers with a late float cross through src/abi_shim.c on
+// every backend — see src/shim.zig for the measured miscompilation this
+// sidesteps. `meshopt_simplifyPrune` and `meshopt_simplifyPoints` keep the
+// direct call: their float sits within the first 6 integer-class slots.
+const shim = @import("shim.zig");
 
 pub const Options = c.SimplifyOptions;
 pub const VertexFlags = c.SimplifyVertexFlags;
@@ -59,7 +64,7 @@ pub fn simplify(comptime V: type, destination: []u32, indices: []const u32, vert
     contract.checkVertex(V, 3);
     assert(destination.len >= indices.len);
     var err: f32 = 0;
-    const n = c.meshopt_simplify(destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), target_index_count, target_error, options, &err);
+    const n = shim.zmeshopt_shim_simplify(target_error, destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), target_index_count, options, &err);
     return .{ .indices = destination[0..n], .err = err };
 }
 
@@ -70,7 +75,8 @@ pub fn simplifyWithAttributes(comptime V: type, destination: []u32, indices: []c
     assert(destination.len >= indices.len);
     if (attributes) |attr| assert(attr.weights.len <= 32);
     var err: f32 = 0;
-    const n = c.meshopt_simplifyWithAttributes(
+    const n = shim.zmeshopt_shim_simplifyWithAttributes(
+        target_error,
         destination.ptr,
         indices.ptr,
         indices.len,
@@ -83,7 +89,6 @@ pub fn simplifyWithAttributes(comptime V: type, destination: []u32, indices: []c
         if (attributes) |attr| attr.weights.len else 0,
         lockPtr(vertex_lock, vertices.len),
         target_index_count,
-        target_error,
         options,
         &err,
     );
@@ -97,7 +102,8 @@ pub fn simplifyWithUpdate(comptime V: type, indices: []u32, vertices: []V, attri
     contract.checkVertex(V, 3);
     if (attributes) |attr| assert(attr.weights.len <= 32);
     var err: f32 = 0;
-    const n = c.meshopt_simplifyWithUpdate(
+    const n = shim.zmeshopt_shim_simplifyWithUpdate(
+        target_error,
         indices.ptr,
         indices.len,
         contract.floatPtrMut(V, vertices),
@@ -109,7 +115,6 @@ pub fn simplifyWithUpdate(comptime V: type, indices: []u32, vertices: []V, attri
         if (attributes) |attr| attr.weights.len else 0,
         lockPtr(vertex_lock, vertices.len),
         target_index_count,
-        target_error,
         options,
         &err,
     );
@@ -123,7 +128,7 @@ pub fn simplifySloppy(comptime V: type, destination: []u32, indices: []const u32
     contract.checkVertex(V, 3);
     assert(destination.len >= indices.len);
     var err: f32 = 0;
-    const n = c.meshopt_simplifySloppy(destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), lockPtr(vertex_lock, vertices.len), target_index_count, target_error, &err);
+    const n = shim.zmeshopt_shim_simplifySloppy(target_error, destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), lockPtr(vertex_lock, vertices.len), target_index_count, &err);
     return .{ .indices = destination[0..n], .err = err };
 }
 

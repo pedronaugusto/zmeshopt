@@ -264,11 +264,29 @@ expect 'expected 9, found 8' \
 'try std.testing.expectEqual(@as(usize, 9), ours.late_float_fns);'
 
 # The canary harness itself: a mirror that echoes the wrong value must fail
-# the comparison, or the canary proves nothing about argument arrival.
-expect "late-float canary: meshopt_simplify" \
+# the comparison, or the canary proves nothing about argument arrival. Runs
+# on an arm the verdict table calls exact, where the watch hard-asserts.
+expect 'toolchain watch: raw late-float' \
   "a canary mirror echoing a wrong value" tests/abi_canary.c \
 '    slots[7] = (double)target_error;' \
 '    slots[7] = (double)target_error + 1;'
+
+# The shim seam. The forwarders exist to dodge a measured backend
+# miscompile, so a shim signature drifting from its prototype would corrupt
+# exactly the calls it protects. u32 -> u64 still compiles at every call
+# site (Zig widens implicitly); only sweepShim can refuse it.
+expect 'shim function zmeshopt_shim_opacityMapMeasure parameter 9' \
+  "a shim extern parameter widened (u32 -> u64)" src/shim.zig \
+'texture_width: u32' \
+'texture_width: u64'
+
+# The reverse direction: a forwarder declared in the header that src/shim.zig
+# never binds is unreachable from Zig — the shape a half-landed shim
+# extension would take.
+expect 'does not bind it, so the forwarder is unreachable' \
+  "a forwarder declared in abi_shim.h only" src/abi_shim.h \
+'ZMESHOPT_SHIM_API void zmeshopt_shim_analyzeCoverage(struct meshopt_CoverageStatistics* out, const unsigned int* indices, size_t index_count, const float* vertex_positions, size_t vertex_count, size_t vertex_positions_stride);' \
+"$(printf 'ZMESHOPT_SHIM_API void zmeshopt_shim_analyzeCoverage(struct meshopt_CoverageStatistics* out, const unsigned int* indices, size_t index_count, const float* vertex_positions, size_t vertex_count, size_t vertex_positions_stride);\nZMESHOPT_SHIM_API void zmeshopt_shim_futureThing(float first, unsigned int* destination);')"
 
 #-----------------------------------------------------------------------------
 # The coverage guard.
@@ -294,8 +312,8 @@ expect 'entry point\(s\) with no idiomatic caller' \
 
 expect 'the idiomatic layer does call' \
   "an excuse written for an entry point that needs none" tools/zig_surface_exceptions.txt \
-'# (empty: every extern has an idiomatic caller)' \
-"$(printf '# (empty: every extern has an idiomatic caller)\nmeshopt_stripifyBound\tbound size helper, callers can compute it')"
+'# (every row below is a shim reroute, not a coverage gap)' \
+"$(printf '# (every row below is a shim reroute, not a coverage gap)\nmeshopt_stripifyBound\tbound size helper, callers can compute it')"
 
 expect 'no Zig reimplementation on record' \
   "an inline-helper ledger row deleted" tools/zig_reimpl.txt \

@@ -38,10 +38,13 @@ change that.
 
 Unlike a C++ upstream, meshoptimizer's entire public surface is
 `extern "C"` functions declared in one pure-C header (`src/meshoptimizer.h`).
-There is no shim layer in this repository: the hand-written externs in
+There is no binding shim in this repository: the hand-written externs in
 `src/c/*.zig` mirror that header directly, and `src/abi_check.zig` `@cImport`s
 it (in the test module only) to prove the mirror, field by field and function
-by function.
+by function. (`src/abi_shim.c` is not part of the binding contract — it
+re-spells a few caller shapes around measured Zig-backend miscompiles, adds
+no behaviour, and is retired the day the toolchain watch says it can be; see
+[BINDING.md](BINDING.md).)
 
 No configuration macro changes a type's layout. `MESHOPTIMIZER_NO_SIMD`
 changes codegen only, and `MESHOPTIMIZER_NO_WRAPPERS` removes the C++-only

@@ -17,7 +17,7 @@ MAX_DECL=6      # comment lines directly above one declaration
 MAX_HEADER=14   # the block at the top of a file
 work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
 
-for f in src/*.zig src/c/*.zig examples/*.zig tests/*.c tests/consumer/src/* build.zig; do
+for f in src/*.zig src/c/*.zig src/*.c src/*.h examples/*.zig tests/*.c tests/consumer/src/* build.zig; do
   [ -f "$f" ] || continue
   awk -v F="$f" -v MD="$MAX_DECL" -v MH="$MAX_HEADER" '
     BEGIN { run = 0; start = 0; first = 1 }

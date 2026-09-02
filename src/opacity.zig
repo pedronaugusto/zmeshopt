@@ -7,6 +7,9 @@ const std = @import("std");
 const assert = std.debug.assert;
 const c = @import("c.zig").opacity;
 const contract = @import("contract.zig");
+// opacityMapMeasure has a late float; it crosses through src/abi_shim.c on
+// every backend (src/shim.zig has the measurement).
+const shim = @import("shim.zig");
 
 /// The OMM state count: 2-state (opaque/transparent) or 4-state (adding
 /// unknown-opaque/unknown-transparent).
@@ -37,7 +40,7 @@ pub fn opacityMapMeasure(comptime V: type, levels: []u8, sources: []u32, omm_ind
     assert(levels.len >= triangle_count and sources.len >= triangle_count);
     assert(omm_indices.len >= triangle_count);
     assert(max_level <= 12);
-    return c.meshopt_opacityMapMeasure(levels.ptr, sources.ptr, omm_indices.ptr, indices.ptr, indices.len, contract.floatPtr(V, uvs), uvs.len, @sizeOf(V), texture_width, texture_height, max_level, target_edge);
+    return shim.zmeshopt_shim_opacityMapMeasure(target_edge, levels.ptr, sources.ptr, omm_indices.ptr, indices.ptr, indices.len, contract.floatPtr(V, uvs), uvs.len, @sizeOf(V), texture_width, texture_height, max_level);
 }
 
 /// EXPERIMENTAL upstream: rasterizes opacity for one triangle entry by

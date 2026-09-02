@@ -17,11 +17,15 @@ header declares, the experimental surface included — with:
   lengths, `comptime`-typed vertex streams, error unions for the codec
   conventions, and a Zig-allocator adapter for upstream's process-global
   allocation hook.
-- The late-float caller-codegen canary (`tests/abi_canary.c` +
-  `src/late_float_canary_test.zig`): the affected upstream signatures are
-  called through test-only C mirrors and every argument asserted bit-exact,
-  because a known Zig backend miscompilation of that shape must turn the suite
-  red rather than ship wrong meshes.
+- An ABI shim (`src/abi_shim.c`) for the two caller shapes Zig 0.16.0's
+  self-hosted backends were measured miscompiling — a float after more than 6
+  integer-class parameters, and the all-float `CoverageStatistics` return.
+  The affected functions cross through clang-compiled forwarders on every
+  backend, because a wrong argument must be impossible to ship, not merely
+  detected. Canaries (`tests/abi_canary.c` + `src/abi_canary_test.zig`)
+  hard-assert the shim path bit-exact everywhere, and a toolchain watch
+  asserts the raw shapes stay broken where measured — a fixed backend turns
+  the suite red with "retire the shim" as the meaning.
 - A consumer package (`tests/consumer/`) driving the module and the C artifact
   the way a downstream `b.dependency` does, examples that are built AND run,
   generated README numbers, and the family CI matrix.

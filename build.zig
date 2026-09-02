@@ -92,7 +92,8 @@ pub fn build(b: *std.Build) void {
     const options_module = options_step.createModule();
 
     //=====================================================================
-    // The C library: the 20 vendored translation units, nothing else.
+    // The C library: the vendored translation units, plus src/abi_shim.c —
+    // the caller-shape forwarders this repo owns (see abi_shim.h).
     //=====================================================================
 
     const lib = b.addLibrary(.{
@@ -115,8 +116,10 @@ pub fn build(b: *std.Build) void {
     if (options.shared and target.result.os.tag == .windows) {
         // The header's MESHOPTIMIZER_API is the export seam upstream provides
         // (meshoptimizer.h:17-20). Consumers do not need a dllimport
-        // counterpart: they link through the import library's thunks.
+        // counterpart: they link through the import library's thunks. The
+        // shim's own export macro rides the same switch.
         lib.root_module.addCMacro("MESHOPTIMIZER_API", "__declspec(dllexport)");
+        lib.root_module.addCMacro("ZMESHOPT_SHIM_SHARED", "");
     }
 
     // meshoptimizer throws nothing and uses no RTTI, so both are disabled
@@ -130,6 +133,13 @@ pub fn build(b: *std.Build) void {
     lib.root_module.addCSourceFiles(.{
         .files = &meshopt_sources,
         .flags = cxx_flags,
+    });
+    // The forwarders' include of "meshoptimizer.h" resolves against the
+    // vendored tree; the vendored TUs include it relatively and need no path.
+    lib.root_module.addIncludePath(b.path("libs/meshoptimizer/src"));
+    lib.root_module.addCSourceFile(.{
+        .file = b.path("src/abi_shim.c"),
+        .flags = &.{"-std=c99"},
     });
     lib.root_module.sanitize_c = if (options.sanitize_c) .full else .off;
 
@@ -182,10 +192,13 @@ pub fn build(b: *std.Build) void {
     // MESHOPTIMIZER_NO_SIMD is codegen-only and MESHOPTIMIZER_NO_WRAPPERS
     // only removes C++-side inline templates translate-c never sees.
     tests.root_module.addIncludePath(b.path("libs/meshoptimizer/src"));
-    // The late-float caller-codegen canary (see src/late_float_canary_test.zig):
-    // test-only C mirrors of the 8 upstream signatures whose shape the
-    // self-hosted x86-64 backend was measured misallocating. Test module
-    // only — never in the shipped library.
+    // src/ so the same @cImport reaches abi_shim.h — the oracle holds
+    // src/shim.zig's externs to the shim's prototypes the same way.
+    tests.root_module.addIncludePath(b.path("src"));
+    // The ABI canaries (see src/abi_canary_test.zig): test-only C mirrors of
+    // the raw shapes self-hosted backends were measured miscompiling and of
+    // the shim shapes the bindings ship instead. Test module only — never in
+    // the shipped library.
     tests.root_module.addCSourceFile(.{
         .file = b.path("tests/abi_canary.c"),
         .flags = &.{"-std=c99"},
