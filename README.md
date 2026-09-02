@@ -337,7 +337,10 @@ for a caller that wants the C contract verbatim.
 
 Deliberately out of scope: file formats, glTF, and scene handling. Those
 belong to a host or to a sibling package — this one binds exactly one
-upstream.
+upstream. For glTF documents carrying `EXT_meshopt_compression`, the sibling
+[zcgltf](https://github.com/pedronaugusto/zcgltf) parses and this package
+decodes; its README documents the pairing contract, and its test suite runs
+it end to end.
 
 ## Contributing
 
