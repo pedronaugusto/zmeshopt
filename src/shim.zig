@@ -1,11 +1,13 @@
 //! Externs for `src/abi_shim.c` — the caller-shape forwarders.
 //!
-//! Zig 0.16.0's self-hosted backends were measured (CI, 2026-09-02)
-//! miscompiling two caller shapes upstream's ABI requires: an f32 argument
-//! after more than 6 integer-class arguments, and an all-float 16-byte
-//! struct return. Each forwarder re-spells one affected function with its
-//! floats FIRST or its struct return as an out-parameter, and the idiomatic
-//! layer calls these on every backend — one path, tested everywhere.
+//! Zig 0.16.0 was measured (CI, 2026-09-02) miscompiling two caller shapes
+//! upstream's ABI requires: an f32 argument after more than 6 integer-class
+//! arguments (the self-hosted x86-64 backend on linux), and an all-float
+//! 16-byte struct return (both measured backends, on every measured ABI
+//! that returns it in registers). Each forwarder re-spells one affected
+//! function with its floats FIRST or its struct return as an out-parameter,
+//! and the idiomatic layer calls these on every backend — one path, tested
+//! everywhere.
 //!
 //! `src/abi_check.zig` holds these declarations to `src/abi_shim.h`; the
 //! canaries in `src/abi_canary_test.zig` prove the crossing bit-exact

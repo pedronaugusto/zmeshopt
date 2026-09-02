@@ -181,9 +181,10 @@ MSVC's as separate CI jobs, because the header is compared *as preprocessed
 for a target* and a C enum's type differs between the two.
 
 One class of hazard lives below anything a declaration can express: Zig
-0.16.0's self-hosted backends were measured — by this repo's own CI —
-miscompiling two CALLER shapes upstream's ABI requires (a float passed after
-many integer-class parameters; an all-float small-struct return). The
+0.16.0 was measured — by this repo's own CI — miscompiling two CALLER shapes
+upstream's ABI requires (a float passed after many integer-class parameters,
+on the self-hosted x86-64 backend; an all-float small-struct return, under
+the LLVM backend as well). The
 affected functions cross through `src/abi_shim.c`, clang-compiled forwarders
 that re-spell each shape into a measured-safe one, on every backend — one
 code path, tested everywhere. Runtime canaries hard-assert the shim path
@@ -248,7 +249,7 @@ artifact are each driven by a real consumer there.
 | **66** | Zig tests `zig build test` executes |
 | **8** | assertions in the standalone C smoke test |
 | **20** | vendored meshoptimizer translation units `build.zig` compiles |
-| **3699** | Zig source lines (`src/`) |
+| **3706** | Zig source lines (`src/`) |
 | **22** | deliberate drifts `ci/check-abi-drift.sh` must refuse |
 | **23** | steps `ci/run.sh` runs |
 | **7** | further targets `ci/run.sh` cross-compiles |
