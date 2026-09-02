@@ -1,0 +1,11 @@
+# zmeshopt — upstream helpers that exist only as C++ inline functions, and
+# the Zig declarations that reimplement them.
+#
+# There is no symbol to bind: `#ifdef __cplusplus` guards these in the header
+# (meshoptimizer.h:1005-1021), so a C consumer of the library never had them
+# either. ci/check-coverage.sh derives the required rows from the header's
+# `^inline` declarations and verifies each declaration and test exists.
+#
+# Format: NAME<TAB>src/FILE.zig:decl<TAB>test name
+meshopt_quantizeUnorm	src/quantize.zig:quantizeUnorm	quantizeUnorm
+meshopt_quantizeSnorm	src/quantize.zig:quantizeSnorm	quantizeSnorm

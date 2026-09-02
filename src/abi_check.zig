@@ -1,24 +1,17 @@
-//! Comptime cross-check: c.zig's hand-written externs against the vendored
-//! `meshoptimizer.h`, `@cImport`'d only in a test (the shipped module stays
-//! translate-c-free), compared per-declaration via reflection. No checklist:
+//! Comptime cross-check: the hand-written externs in `src/c/` against the
+//! vendored `meshoptimizer.h`, `@cImport`'d only in a test (the shipped
+//! module stays translate-c-free), compared per declaration via reflection;
 //! an unclassified declaration errors at compile time, not silently.
 //!
 //! Naming conventions are load-bearing: extern functions carry the C name
-//! itself (`meshopt_simplify`), type `Foo` pairs with `meshopt_Foo`, and a
-//! mask or enum whose C enumerators are loose constants carries an
-//! `upstream_prefix` decl that, plus the PascalCased field name, reconstructs
-//! each enumerator (`meshopt_SimplifyLockBorder`).
+//! itself, type `Foo` pairs with `meshopt_Foo`, and a mask or enum whose C
+//! enumerators are loose constants carries an `upstream_prefix` decl that,
+//! with the PascalCased field name, reconstructs each enumerator. The
+//! reverse sweep is the completeness gate: every header function must be
+//! bound, enforced at compile time rather than promised in prose.
 //!
-//! The reverse sweep is this package's completeness gate: every function the
-//! header declares must be bound, so "binds all of upstream" is enforced at
-//! compile time rather than promised in prose.
-//!
-//! Does NOT catch: pointee type mismatches (translate-c renders every C
-//! pointer as `[*c]T`, so pointees compare by size/alignment only — except
-//! function pointers, which ARE compared signature-deep here), or the
-//! anonymous option enums' TYPES (upstream gives them no name; their bits are
-//! checked value by value instead). `tests/c_smoke.c` and the behavioural
-//! suite cover the pointee gap from the C side.
+//! Pointees compare by size/alignment only (`[*c]T` erases them); function
+//! pointers ARE compared signature-deep. `tests/c_smoke.c` covers the gap.
 
 const std = @import("std");
 const c = @import("c.zig");
@@ -120,13 +113,12 @@ fn fnPointee(comptime T: type) ?type {
     return null;
 }
 
-/// Size and alignment, plus the part of a scalar's identity they do not
-/// carry: a `size_t` declared `isize`, or a `float` declared `u32`, passes
-/// size/alignment and then silently reinterprets every value — comparing
-/// signedness and int-vs-float closes that. When BOTH sides are function
-/// pointers, the pointed-to signatures are compared deep — upstream has no
-/// named callback typedefs, so this is the one place a callback's shape is
-/// held to the header.
+/// Size and alignment, plus the scalar identity they do not carry: a
+/// `size_t` declared `isize` or a `float` declared `u32` passes both and
+/// silently reinterprets every value — signedness and int-vs-float close
+/// that. When BOTH sides are function pointers the pointed-to signatures
+/// are compared deep; upstream has no named callback typedefs, so this is
+/// the one place a callback's shape is held to the header.
 fn sameScalar(
     comptime what: []const u8,
     comptime Ours: type,
@@ -206,16 +198,13 @@ fn checkFnType(
 //
 // Zig 0.16.0's self-hosted x86-64 backend was measured (zjolt, 2026-09-01,
 // by disassembling minimal reproductions) misallocating an f32/f64 argument
-// preceded by MORE than 6 integer-class arguments, on x86_64-linux where that
-// backend is the Debug default. zjolt shaped its own C ABI to keep such
-// signatures out; meshoptimizer's ABI is upstream's, and 8 of its functions
-// have exactly that shape, so this package cannot forbid them.
-//
-// What it does instead: classify them, pin the count so a re-vendor that adds
-// one is a conscious act, and prove the caller side at RUNTIME —
-// `late_float_canary_test.zig` calls test-only C mirrors of each affected
-// shape and asserts every argument arrives bit-exact, on every CI target and
-// backend. The hazard is gated by a measurement instead of a prohibition.
+// preceded by MORE than 6 integer-class arguments, on x86_64-linux where
+// that backend is the Debug default. meshoptimizer's ABI is upstream's, and
+// 8 of its functions have exactly that shape, so this package cannot forbid
+// them. It classifies them, pins the count so a re-vendor that adds one is a
+// conscious act, and proves the caller side at RUNTIME:
+// `late_float_canary_test.zig` calls test-only C mirrors of each shape and
+// asserts every argument arrives bit-exact, on every CI target and backend.
 //=============================================================================
 
 const max_int_class_params_before_float = 6;

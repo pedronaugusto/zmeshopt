@@ -1,0 +1,7 @@
+# zmeshopt — externs the idiomatic layer deliberately does not call.
+#
+# Format: NAME<TAB>reason (>= 10 chars). ci/check-coverage.sh fails the build
+# on an extern that is neither called from the idiomatic layer nor listed
+# here, and on a line here for an extern the layer DOES call.
+#
+# (empty: every extern has an idiomatic caller)

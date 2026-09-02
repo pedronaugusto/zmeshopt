@@ -13,8 +13,8 @@
 
 ## What was taken, and what was left behind
 
-Taken: the whole of upstream's `src/` directory, **verbatim and entire** — the
-20 translation units and the single public header — plus `LICENSE.md`.
+Taken: the whole of upstream's `src/` directory, **verbatim and entire** —
+every translation unit and the single public header — plus `LICENSE.md`.
 
 | Left out | Reason |
 |---|---|
@@ -31,8 +31,8 @@ than identical-modulo-a-list that could itself fall out of date.
 
 Which translation units actually compile is decided explicitly in `build.zig`
 (`meshopt_sources`), never by a directory glob — though for this upstream the
-answer is "all 20", and the list exists so a re-vendor cannot silently change
-that.
+answer is "all of them", and the list exists so a re-vendor cannot silently
+change that.
 
 ## The header is the C ABI
 
@@ -68,9 +68,10 @@ macro.** `meshopt_setAllocator` (`src/meshoptimizer.h:1000`) swaps the
 allocation functions for the whole library, in every thread at once.
 `MESHOPTIMIZER_ALLOC_CALLCONV` is `__cdecl` under MSVC and empty elsewhere
 (`src/meshoptimizer.h:23-27`) — the same thing on x86-64, where `__cdecl` is
-the one calling convention. Upstream's own C++ `meshopt_Allocator` documents
-the deallocation order: blocks are freed in reverse allocation order (LIFO),
-which is what makes a stack-shaped Zig adapter sound.
+the one calling convention. Upstream's own C++ `meshopt_Allocator` frees in
+reverse allocation order (LIFO); the Zig adapter in `src/memory.zig` does not
+rely on that discipline — it stores a size prefix ahead of each block instead
+(see [BINDING.md](BINDING.md)), so it stays correct if upstream ever drops it.
 
 **The experimental surface is marked, not separated.**
 `MESHOPTIMIZER_EXPERIMENTAL` expands to `MESHOPTIMIZER_API`

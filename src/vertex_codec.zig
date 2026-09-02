@@ -19,9 +19,8 @@ pub const EncodeError = error{BufferTooSmall};
 pub const DecodeError = error{Malformed};
 
 fn checkCodecVertex(comptime V: type) void {
-    comptime if (@sizeOf(V) % 4 != 0 or @sizeOf(V) > 256) @compileError(
-        "zmeshopt: the vertex codec requires a vertex size that is a " ++
-            "multiple of 4 and at most 256, not " ++ @typeName(V) ++ "'s");
+    comptime if (@sizeOf(V) % 4 != 0 or @sizeOf(V) > 256) @compileError("zmeshopt: the vertex codec requires a vertex size that is a " ++
+        "multiple of 4 and at most 256, not " ++ @typeName(V) ++ "'s");
 }
 
 /// Encodes a vertex buffer; returns the written prefix. Size `buffer` with

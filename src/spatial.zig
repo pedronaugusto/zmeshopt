@@ -47,7 +47,7 @@ test spatialSortRemap {
 
 test spatialSortTriangles {
     const vertices = [_][3]f32{
-        .{ 0, 0, 0 }, .{ 1, 0, 0 }, .{ 0, 1, 0 },
+        .{ 0, 0, 0 },  .{ 1, 0, 0 },  .{ 0, 1, 0 },
         .{ 90, 0, 0 }, .{ 91, 0, 0 }, .{ 90, 1, 0 },
     };
     const indices = [_]u32{ 0, 1, 2, 3, 4, 5 };

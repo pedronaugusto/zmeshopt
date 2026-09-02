@@ -225,7 +225,7 @@ test simplifyPrune {
     // A big quad and a tiny sliver triangle beside it: relative to the mesh
     // extents the quad is large and survives, the sliver is pruned.
     const vertices = [_][3]f32{
-        .{ 0, 0, 0 },   .{ 100, 0, 0 },    .{ 0, 100, 0 },    .{ 100, 100, 0 },
+        .{ 0, 0, 0 },     .{ 100, 0, 0 },      .{ 0, 100, 0 },      .{ 100, 100, 0 },
         .{ 101, 101, 0 }, .{ 101.01, 101, 0 }, .{ 101, 101.01, 0 },
     };
     const indices = [_]u32{ 0, 1, 2, 1, 3, 2, 4, 5, 6 };

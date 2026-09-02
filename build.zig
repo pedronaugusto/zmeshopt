@@ -58,15 +58,11 @@ pub fn build(b: *std.Build) void {
             "shared",
             "Build the C library as a shared object",
         ) orelse false,
-        // Off by default, and deliberately NOT tied to `optimize`.
-        //
-        // Zig's full C sanitizer emits calls into a runtime that is linked
-        // only into a compilation that is itself sanitized. Defaulting it on
-        // in Debug means a consumer who writes `b.dependency("zmeshopt", .{})`
-        // — forgetting to forward `optimize`, the most common Zig packaging
-        // mistake — gets a Debug zmeshopt inside a release executable and a
-        // link failure naming a __ubsan symbol, which names nothing they can
-        // act on. The suite turns it on explicitly instead.
+        // Off by default, and deliberately NOT tied to `optimize`: Zig's C
+        // sanitizer emits calls into a runtime linked only into a compilation
+        // that is itself sanitized, so defaulting it on in Debug hands a
+        // consumer who forgot to forward `optimize` a link failure naming a
+        // __ubsan symbol. The suite turns it on explicitly instead.
         .sanitize_c = b.option(
             bool,
             "sanitize_c",

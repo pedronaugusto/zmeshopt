@@ -1,0 +1,10 @@
+.{
+    .name = .zmeshopt_consumer,
+    .version = "0.0.0",
+    .fingerprint = 0xffefa90d94e53842,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        .zmeshopt = .{ .path = "../.." },
+    },
+    .paths = .{""},
+}

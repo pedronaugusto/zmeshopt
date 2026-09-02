@@ -7,8 +7,6 @@
 //! reader copies is code CI executes.
 
 const std = @import("std");
-
-// usage-begin
 const zmeshopt = @import("zmeshopt");
 
 const Vertex = extern struct {
@@ -21,8 +19,10 @@ pub fn main() !void {
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
+    // --- README:usage ---
+
     // Route meshoptimizer's temporary allocations through a Zig allocator
-    // (optional — the default is operator new/delete, and the install is
+    // (optional; the default is operator new/delete, and the install is
     // process-wide and permanent).
     zmeshopt.installZigAllocator(std.heap.page_allocator);
 
@@ -67,6 +67,7 @@ pub fn main() !void {
     const encoded_vertices = try zmeshopt.encodeVertexBuffer(Vertex, encoded_vertices_buffer, vertices);
     const encoded_indices_buffer = try arena.alloc(u8, zmeshopt.encodeIndexBufferBound(indices.len, vertices.len));
     const encoded_indices = try zmeshopt.encodeIndexBuffer(encoded_indices_buffer, indices);
+    // --- README:usage ---
 
     std.debug.print("indexed:    {} corners -> {} vertices, {} triangles\n", .{ soup.len, vertices.len, indices.len / 3 });
     std.debug.print("optimized:  ACMR {d:.3}, {} vertices transformed\n", .{ cache.acmr, cache.vertices_transformed });
@@ -102,4 +103,3 @@ fn gridVertex(comptime n: usize, x: usize, y: usize) Vertex {
         .normal = .{ 0, 0, 1 },
     };
 }
-// usage-end

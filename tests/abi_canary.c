@@ -4,16 +4,12 @@
  *
  * Eight meshoptimizer functions pass a float after more than 6 integer-class
  * parameters, a shape Zig 0.16.0's self-hosted x86-64 backend was measured
- * (zjolt, 2026-09-01) misallocating in the CALLER on x86_64-linux. This
- * binding cannot forbid the shape — it is upstream's ABI — so it measures it
- * instead: each function below mirrors one affected signature's parameter
- * list exactly, echoes every argument into a slot array, and
- * src/late_float_canary_test.zig asserts each one arrives bit-exact. A
- * toolchain that miscompiles these callers turns the suite red with a named
- * canary instead of shipping silently wrong meshes.
- *
- * src/abi_check.zig pins the affected-signature count at 8; a re-vendor that
- * adds one must extend this file and that count together.
+ * (zjolt, 2026-09-01) misallocating in the CALLER on x86_64-linux. The shape
+ * is upstream's ABI, so it is measured instead of forbidden: each function
+ * below mirrors one affected parameter list exactly, echoes every argument
+ * into a slot array, and src/late_float_canary_test.zig asserts each one
+ * arrives bit-exact. src/abi_check.zig pins the affected count at 8; a
+ * re-vendor that adds one must extend this file and that count together.
  */
 #include <stddef.h>
 
