@@ -1,0 +1,6 @@
+# Build output.
+.zig-cache/
+zig-out/
+
+# Worktrees of this repository.
+.claude/
