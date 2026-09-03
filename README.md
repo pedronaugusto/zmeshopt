@@ -146,9 +146,9 @@ host passing `malloc`/`free`-shaped functions.
 The seam has one wrinkle worth knowing: upstream frees with `deallocate(ptr)`,
 no size, while a Zig allocator requires the size back. `src/memory.zig`
 bridges that with a size header stored ahead of each block — see
-[BINDING.md](BINDING.md) for the design and its trade-offs. The C smoke test
-and the suite's balance test both run against a counting allocator, so an
-unbalanced seam is a test failure.
+[BINDING.md](BINDING.md) for the design and its trade-offs. The suite's
+balance test drives the seam through a counting allocator and requires every
+allocation to have been freed, so an unbalanced seam is a test failure.
 
 ### The ABI guard
 
@@ -176,9 +176,10 @@ quietly makes it vacuous looks exactly like a passing build.
 `ci/check-abi-drift.sh` is the answer — deliberate drifts applied one at a
 time, each of which must be refused, including the struct-field swap that
 leaves every offset unchanged and so defeats any positional comparison, and
-four mutations against the coverage gate. It runs on the Itanium ABI and on
-MSVC's as separate CI jobs, because the header is compared *as preprocessed
-for a target* and a C enum's type differs between the two.
+four mutations against the coverage gate. It runs as two CI jobs, on the
+x86_64-linux-gnu ABI and on MSVC's, because the header is compared *as
+preprocessed and laid out for a target*, so a refusal proved on one ABI is
+not proved on the other.
 
 One class of hazard lives below anything a declaration can express: Zig
 0.16.0 was measured — by this repo's own CI — miscompiling two CALLER shapes
@@ -224,8 +225,7 @@ codec roundtrips), the C smoke test (`zig build test-c`) proves the installed
 header and library stand alone with no Zig in the picture, and the examples
 build and RUN. Codec roundtrip tests compare triangles
 **rotation-normalized**, because the index codec is free to rotate a
-triangle's corners — a fact two exact-comparison tests caught before the
-upstream source explained it.
+triangle's corners.
 
 ```sh
 zig build --build-file tests/consumer/build.zig run
@@ -249,7 +249,7 @@ artifact are each driven by a real consumer there.
 | **66** | Zig tests `zig build test` executes |
 | **8** | assertions in the standalone C smoke test |
 | **20** | vendored meshoptimizer translation units `build.zig` compiles |
-| **3706** | Zig source lines (`src/`) |
+| **3707** | Zig source lines (`src/`) |
 | **22** | deliberate drifts `ci/check-abi-drift.sh` must refuse |
 | **23** | steps `ci/run.sh` runs |
 | **7** | further targets `ci/run.sh` cross-compiles |
@@ -265,9 +265,10 @@ stale. Adding a claim means adding its measurement.
 prove presence, not correctness — the oracle and the behavioural tests hold
 that, and `ci/check-coverage.sh` holds the idiomatic layer's reach one extern
 at a time. Source lines measure volume, not surface. And the gate itself has
-three blind spots: a number spelled as a word, a number inside `code` — where
-it is an identifier or a citation rather than a claim — and a sentence that is
-wrong without containing a number at all.
+blind spots: a number spelled as a word, a single digit, a number joined to
+its neighbour by `-`, `.` or `/` (a date, a byte width), a number inside
+`code` — where it is an identifier or a citation rather than a claim — and a
+sentence that is wrong without containing a number at all.
 
 ### Continuous integration
 
@@ -279,8 +280,10 @@ listed in `ci/run.sh`, verifies the vendored tree byte-for-byte against the
 pinned upstream commit, and runs the ABI drift mutation proof on both ABIs.
 See [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
-The same matrix runs locally, so a failure is reproducible on your machine
-before it is a red mark on a pull request:
+The same steps run locally, so a failure is reproducible on your machine
+before it is a red mark on a pull request. What only the hosted run has is
+the suite on the other two operating systems, the MSVC test arm, and the
+vendor-integrity job, which needs the network:
 
 ```sh
 ci/run.sh            # the full matrix
@@ -339,8 +342,8 @@ Deliberately out of scope: file formats, glTF, and scene handling. Those
 belong to a host or to a sibling package — this one binds exactly one
 upstream. For glTF documents carrying `EXT_meshopt_compression`, the sibling
 [zcgltf](https://github.com/pedronaugusto/zcgltf) parses and this package
-decodes; its README documents the pairing contract, and its test suite runs
-it end to end.
+decodes; its README documents the pairing contract, and its `tests/interop/`
+package runs it end to end, in its CI, against a released zmeshopt.
 
 ## Contributing
 

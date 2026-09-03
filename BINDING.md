@@ -13,10 +13,9 @@ header, so unlike zozz and zjolt there is no `ffi/` layer here: nothing to
 write in C++, no static_assert axis, no config-id handshake (no macro changes
 a type's layout — see [UPSTREAM.md](UPSTREAM.md)). What does exist is
 `src/abi_shim.c`: 9 clang-compiled forwarders re-spelling the signatures
-whose CALLER shape Zig 0.16.0's self-hosted backends were measured
-miscompiling — see "The ABI shim and its canaries" below. The forwarders add
-no behaviour and are scheduled for retirement by a gate, not by memory. A
-new function is:
+whose CALLER shape Zig 0.16.0 was measured miscompiling — see "The ABI shim
+and its canaries" below. The forwarders add no behaviour and are scheduled
+for retirement by a gate, not by memory. A new function is:
 
 1. An extern in the matching `src/c/*.zig` region module, mirroring the header
    declaration exactly, with a doc comment that states the sizing contract
@@ -27,9 +26,8 @@ new function is:
    `meshopt_` prefix.
 4. A behavioural test that pins a value, not merely "it ran".
 
-`zig build test` then holds the whole chain: the ABI cross-check, the
-late-float count pin, and `ci/check-coverage.sh` fails if the extern has no
-idiomatic caller.
+`zig build test` then holds the ABI cross-check and the late-float count
+pin; `ci/check-coverage.sh` fails if the extern has no idiomatic caller.
 
 ## Naming, which is load-bearing
 
@@ -104,12 +102,12 @@ Two caller shapes upstream's ABI requires were measured miscompiled by Zig
 0.16.0 (this repo's own hosted CI, 2026-09-02): an f32 argument after more
 than 6 integer-class parameters arrived as 0 on x86_64-linux under the
 self-hosted x86-64 backend, and the all-float 16-byte
-`meshopt_CoverageStatistics` return arrived garbled on x86_64-linux and
-aarch64-macos under **both** the self-hosted and LLVM backends. Windows was
-measured clean throughout — its ABI returns a 16-byte struct through a
-hidden pointer rather than the float registers the others misclassify. The
-idiomatic layer therefore crosses the 9 affected
-functions through `src/abi_shim.c` — floats first, the struct return as an
+`meshopt_CoverageStatistics` return arrived garbled on x86_64-linux under
+**both** the self-hosted and LLVM backends and on aarch64-macos under the
+LLVM backend, the only one measured there. Windows was measured clean
+throughout — its ABI returns a 16-byte struct through a hidden pointer
+rather than the float registers the others misclassify. The idiomatic layer
+therefore crosses the 9 affected functions through `src/abi_shim.c` — floats first, the struct return as an
 out-parameter — on every backend: one code path, tested everywhere. Each
 rerouted extern carries its excuse row in `tools/zig_surface_exceptions.txt`.
 

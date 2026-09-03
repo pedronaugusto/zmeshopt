@@ -5,10 +5,10 @@
 | | |
 |---|---|
 | Source | <https://github.com/zeux/meshoptimizer> |
-| Version | 1.2 (`MESHOPTIMIZER_VERSION 1020`, `src/meshoptimizer.h:6`) |
+| Version | 1.2 (`MESHOPTIMIZER_VERSION 1020`, `src/meshoptimizer.h:15`) |
 | Tag | `v1.2` |
 | Commit | `9d9890c73011d75920af614485296d1e03e95448` |
-| Date | 2026-06-29 |
+| Commit date | 2026-06-29 |
 | License | MIT (`libs/meshoptimizer/LICENSE.md`) |
 
 ## What was taken, and what was left behind
@@ -22,12 +22,12 @@ every translation unit and the single public header — plus `LICENSE.md`.
 | `extern/` | Third-party code (cgltf, fast_obj, sdefl and friends) used only by the demo and tools above. None of it is part of the library. |
 | `gltf/` | gltfpack, a standalone tool built on the library. |
 | `js/` | The JavaScript/WebAssembly distribution. |
-| CMake/Bazel/config glue | Superseded by `build.zig`. |
+| `CMakeLists.txt`, `Makefile`, `README.md`, `CONTRIBUTING.md` | Upstream's build and the documentation of its repository, superseded by `build.zig` and this file. |
 
-Nothing is excluded from inside `src/`. That is worth stating plainly, because
-it is what lets `ci/verify-vendor.sh` diff the vendored tree against upstream
-with **no exclusion list at all** — "unmodified" means byte-identical, rather
-than identical-modulo-a-list that could itself fall out of date.
+Nothing is excluded from inside `src/`, which is what lets
+`ci/verify-vendor.sh` diff the vendored tree against upstream with **no
+exclusion list at all** — "unmodified" means byte-identical, rather than
+identical-modulo-a-list that could itself fall out of date.
 
 Which translation units actually compile is decided explicitly in `build.zig`
 (`meshopt_sources`), never by a directory glob — though for this upstream the
@@ -38,7 +38,7 @@ change that.
 
 Unlike a C++ upstream, meshoptimizer's entire public surface is
 `extern "C"` functions declared in one pure-C header (`src/meshoptimizer.h`).
-There is no binding shim in this repository: the hand-written externs in
+There is no C++-to-C layer in this repository: the hand-written externs in
 `src/c/*.zig` mirror that header directly, and `src/abi_check.zig` `@cImport`s
 it (in the test module only) to prove the mirror, field by field and function
 by function. (`src/abi_shim.c` is not part of the binding contract — it

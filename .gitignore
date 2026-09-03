@@ -4,3 +4,17 @@ zig-out/
 
 # Worktrees of this repository.
 .claude/
+
+# macOS.
+.DS_Store
+
+# Build artefacts from ad-hoc compiler invocations, and the backup
+# ci/check-abi-drift.sh leaves beside a file if it is interrupted mid-run.
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.bak

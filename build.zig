@@ -196,9 +196,9 @@ pub fn build(b: *std.Build) void {
     // src/shim.zig's externs to the shim's prototypes the same way.
     tests.root_module.addIncludePath(b.path("src"));
     // The ABI canaries (see src/abi_canary_test.zig): test-only C mirrors of
-    // the raw shapes self-hosted backends were measured miscompiling and of
-    // the shim shapes the bindings ship instead. Test module only — never in
-    // the shipped library.
+    // the raw shapes Zig 0.16.0 was measured miscompiling and of the shim
+    // shapes the bindings ship instead. Test module only — never in the
+    // shipped library.
     tests.root_module.addCSourceFile(.{
         .file = b.path("tests/abi_canary.c"),
         .flags = &.{"-std=c99"},
@@ -217,7 +217,6 @@ pub fn build(b: *std.Build) void {
         }),
     });
     c_smoke.root_module.link_libc = true;
-    c_smoke.root_module.addIncludePath(b.path("libs/meshoptimizer/src"));
     c_smoke.root_module.addCSourceFile(.{
         .file = b.path("tests/c_smoke.c"),
         .flags = &.{"-std=c99"},

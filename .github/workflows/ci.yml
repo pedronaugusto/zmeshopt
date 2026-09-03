@@ -125,10 +125,10 @@ jobs:
           version: ${{ env.ZIG_VERSION }}
       - run: zig build -Dtarget=${{ matrix.target }}
 
-  # Every number README.md and UPSTREAM.md publish, recomputed from the tree
-  # and compared against what is committed — and no other number allowed to be
-  # written by hand. It builds (the test count is what the build reports), so
-  # it cannot join the hygiene job above.
+  # Every number README.md publishes, recomputed from the tree and compared
+  # against what is committed — and no other number in any document allowed
+  # to be written by hand. It builds (the test count is what the build
+  # reports), so it cannot join the hygiene job above.
   docs:
     name: documented numbers
     runs-on: ubuntu-latest
@@ -155,11 +155,10 @@ jobs:
       - run: ci/check-abi-drift.sh
 
   # The same proof under the other ABI. src/abi_check.zig compares src/c/*.zig
-  # against `@cImport` of the header as preprocessed FOR A TARGET, so a guard
-  # proved to fire on the Itanium ABI is not proved to fire on MSVC's — where
-  # a C enum is `int` rather than `unsigned int`, and meshopt_EncodeExpMode
-  # crosses in signatures. Windows-hosted because building for the MSVC ABI
-  # needs Microsoft's own headers.
+  # against `@cImport` of the header as preprocessed and laid out FOR A
+  # TARGET, so a guard proved to fire on the linux-gnu ABI is not proved to
+  # fire on MSVC's. Windows-hosted because building for the MSVC ABI needs
+  # Microsoft's own headers.
   abi-drift-msvc:
     name: ABI drift (MSVC ABI)
     runs-on: windows-latest
