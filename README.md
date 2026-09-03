@@ -242,7 +242,7 @@ artifact are each driven by a real consumer there.
 <!-- BEGIN GENERATED ci/measurements.sh --markdown -->
 | | |
 |---:|---|
-| **0.1.0** | version (one home: `build.zig.zon`) |
+| **0.1.1** | version (one home: `build.zig.zon`) |
 | **85** | upstream C entry points (`MESHOPTIMIZER_API`/`_EXPERIMENTAL` in the vendored header) |
 | **85** | Zig externs (`pub extern fn` in `src/c/*.zig`) |
 | **8** | of them marked experimental by upstream, bound and labelled |
