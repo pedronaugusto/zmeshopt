@@ -120,6 +120,35 @@ a backend fails the watch loudly, and the shim is retired instead of
 fossilising. A re-vendor that adds a late-float function fails the pin and
 must extend the shim, its prototypes and both canary sets in one change.
 
+### What Zig 0.17 retires, and what it does not
+
+Measured 2026-09-03 against `0.17.0-dev.1978+c961124d9`, by reading the code
+each compiler emits for these shapes with the clang Zig ships as the oracle:
+both x86-64 halves are fixed, the aarch64 half is not. The late float loads
+into `xmm0` rather than `xmm6` under the self-hosted backend, and
+`meshopt_CoverageStatistics` comes back in `xmm0:xmm1` rather than `rax:rdx`
+under both backends. On aarch64 it still arrives in `x0`/`x1` where clang
+uses `s0`-`s3`.
+
+One defect explains every row of the verdict table in
+`src/abi_canary_test.zig`: the C ABI classifier does not look through ARRAY
+fields. `{ [3]f32, f32 }` is a homogeneous aggregate of four floats and
+belongs in the float registers; a struct of four scalar `f32` classifies
+correctly on every backend and version measured here, so the array field is
+the whole variable. Upstream implemented array fields for x86-64 on
+2026-07-27 and has not yet done aarch64 — `test "struct [3]f32"` in Zig's own
+`test/c_abi/main.zig` opens by skipping aarch64, arm, hexagon, mips64 and
+powerpc, which is where that work is tracked.
+
+None of this is urgent, because the shapes the shim actually uses are
+classified correctly by both versions: a leading float and an out-parameter
+have nothing for the classifier to get wrong. What 0.17 changes is the
+canary. The moment the pin moves, `test (ubuntu-latest)` fails — the
+retirement gate firing as designed — and the answer is to flip the two x86-64
+verdict cells to `.exact` and delete the 8 late-float forwarders.
+`analyzeCoverage`'s reroute stays until aarch64 is implemented upstream.
+
+
 ## Before you call it done
 
 `zig build test` is the bar — it runs the oracle, the canaries, the

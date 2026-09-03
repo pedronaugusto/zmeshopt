@@ -192,7 +192,9 @@ code path, tested everywhere. Runtime canaries hard-assert the shim path
 argument for argument, and a toolchain watch asserts the raw shapes stay
 broken where they were measured broken, so a Zig release that fixes a
 backend fails the watch — the signal to retire the shim rather than
-fossilise it. See [BINDING.md](BINDING.md).
+fossilise it. Zig 0.17 fixes both x86-64 shapes and leaves the aarch64 one,
+so that watch will fire on the next pin bump; [BINDING.md](BINDING.md) has
+the measurement, the single defect underneath both shapes, and what retires.
 
 ### Build hygiene
 
