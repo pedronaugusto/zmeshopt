@@ -98,6 +98,8 @@ jobs:
         run: ci/check-coverage.sh
       - name: Every committed script is executable
         run: ci/check-executable.sh
+      - name: No build artefact is tracked
+        run: ci/check-artifacts.sh
       - name: ci/run.sh mirrors this workflow
         run: ci/check-mirror.sh
 

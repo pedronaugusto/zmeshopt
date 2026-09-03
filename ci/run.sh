@@ -116,6 +116,9 @@ run 'documented numbers' ci/check-docs.sh
 # CI runs the scripts in ci/ by path. One committed without its executable bit
 # fails there and nowhere else, because every local runner invokes bash first.
 run 'every committed script is executable' ci/check-executable.sh
+# A fetched package or a build directory in the index is somebody else's tree,
+# or this machine's paths, published forever. .gitignore is the first half.
+run 'no build artefact is tracked' ci/check-artifacts.sh
 
 # The claim at the top of this file, held rather than stated.
 run 'ci/run.sh mirrors the workflow' ci/check-mirror.sh

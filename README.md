@@ -251,7 +251,7 @@ artifact are each driven by a real consumer there.
 | **20** | vendored meshoptimizer translation units `build.zig` compiles |
 | **3707** | Zig source lines (`src/`) |
 | **22** | deliberate drifts `ci/check-abi-drift.sh` must refuse |
-| **23** | steps `ci/run.sh` runs |
+| **24** | steps `ci/run.sh` runs |
 | **7** | further targets `ci/run.sh` cross-compiles |
 <!-- END GENERATED -->
 
