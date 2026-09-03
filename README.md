@@ -249,7 +249,7 @@ artifact are each driven by a real consumer there.
 | **66** | Zig tests `zig build test` executes |
 | **8** | assertions in the standalone C smoke test |
 | **20** | vendored meshoptimizer translation units `build.zig` compiles |
-| **3707** | Zig source lines (`src/`) |
+| **3718** | Zig source lines (`src/`) |
 | **22** | deliberate drifts `ci/check-abi-drift.sh` must refuse |
 | **24** | steps `ci/run.sh` runs |
 | **7** | further targets `ci/run.sh` cross-compiles |
@@ -336,7 +336,13 @@ incomplete. The only exports not bound are the ones not in the header; see
 The idiomatic layer is the intended surface, and `ci/check-coverage.sh`
 enforces that it reaches every extern — both directions, so an excuse file
 with a stale entry fails too. The raw externs stay public under `zmeshopt.c`
-for a caller that wants the C contract verbatim.
+for a caller that wants the C contract verbatim, with one caveat that is easy
+to miss: the functions listed in
+[`tools/zig_surface_exceptions.txt`](tools/zig_surface_exceptions.txt) are the
+ones whose caller shape [The ABI guard](#the-abi-guard) reports measured
+miscompiled, so calling *those* through `zmeshopt.c` reproduces the miscompile
+the idiomatic layer routes around — silently, and only on the affected
+targets.
 
 Deliberately out of scope: file formats, glTF, and scene handling. Those
 belong to a host or to a sibling package — this one binds exactly one

@@ -11,6 +11,17 @@
 //! cover — which its reverse sweep turns into a compile error, one per header
 //! function the missing module declares.
 
+//=============================================================================
+// A convention covering every declaration below. These mirror the header
+// exactly, which is the point of them -- and for a handful the correct
+// prototype is exactly the problem: their CALLER shape is one Zig was
+// measured miscompiling, so a direct call through this namespace can return
+// wrong results on the affected targets where the idiomatic layer is correct
+// everywhere. `tools/zig_surface_exceptions.txt` is the list, kept honest by
+// `ci/check-coverage.sh`; BINDING.md has the measurement and the gate that
+// retires the workaround.
+//=============================================================================
+
 pub const remap = @import("c/remap.zig");
 pub const cache = @import("c/cache.zig");
 pub const index_codec = @import("c/index_codec.zig");
