@@ -13,7 +13,7 @@
 # So this applies one deliberate drift at a time, asserts the build is
 # REFUSED with the guard's own message, and reverts. Each mutation is a
 # distinct kind of skew, chosen because it is the kind a human review would
-# miss. Three of them mutate the VENDORED header — always restored, and a
+# miss. Four of them mutate the VENDORED header — always restored, and a
 # leftover would be caught by both the trap sweep here and ci/verify-vendor.sh.
 #
 # Out of `ci/run.sh --quick` — it rebuilds once per mutation and takes
@@ -25,10 +25,8 @@
 #
 # Any argument given is appended to every `zig build test` below. The one
 # that matters is `-Dtarget`: the oracle compares src/c/ against @cImport of
-# the header AS PREPROCESSED FOR A TARGET, so a guard proved to fire on one
-# ABI is not proved to fire on another — a C enum is `int` under MSVC and
-# `unsigned int` under the Itanium ABI, and meshopt_EncodeExpMode crosses
-# that boundary.
+# the header AS PREPROCESSED AND LAID OUT FOR A TARGET, so a guard proved to
+# fire on one ABI is not proved to fire on another.
 
 set -uo pipefail
 SELF=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")

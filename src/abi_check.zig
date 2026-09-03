@@ -10,8 +10,8 @@
 //! reverse sweep is the completeness gate: every header function must be
 //! bound, enforced at compile time rather than promised in prose.
 //!
-//! Pointees compare by size/alignment only (`[*c]T` erases them); function
-//! pointers ARE compared signature-deep. `tests/c_smoke.c` covers the gap.
+//! Pointees compare by size/alignment only (the check never descends into a
+//! pointee; the behavioural tests hold those); function pointers compare deep.
 
 const std = @import("std");
 const c = @import("c.zig");

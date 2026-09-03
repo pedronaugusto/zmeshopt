@@ -7,8 +7,9 @@
 # (every row below is a shim reroute, not a coverage gap)
 #
 # These 9 cross through src/abi_shim.c instead of the raw extern: their
-# caller shapes are the two measured self-hosted-backend miscompiles
-# (src/shim.zig has the measurement and the retirement gate).
+# caller shapes are the two shapes Zig 0.16.0 was measured miscompiling
+# (src/shim.zig states the measurement; src/abi_canary_test.zig holds the
+# retirement gate).
 meshopt_simplify	rerouted through zmeshopt_shim_simplify in src/abi_shim.c
 meshopt_simplifyWithAttributes	rerouted through zmeshopt_shim_simplifyWithAttributes in src/abi_shim.c
 meshopt_simplifyWithUpdate	rerouted through zmeshopt_shim_simplifyWithUpdate in src/abi_shim.c

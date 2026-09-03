@@ -3,10 +3,10 @@
  * executable, never into the shipped library.
  *
  * Two sets of echo mirrors, asserted by src/abi_canary_test.zig:
- * the zmeshopt_canary_* set mirrors the RAW upstream shapes Zig 0.16.0's
- * self-hosted backends were measured miscompiling in the caller (a float
- * after more than 6 integer-class arguments; an all-float 16-byte struct
- * return) and feeds the toolchain watch that says when the shim can go;
+ * the zmeshopt_canary_* set mirrors the RAW upstream shapes Zig 0.16.0
+ * was measured miscompiling in the caller (a float after more than 6
+ * integer-class arguments; an all-float 16-byte struct return) and feeds
+ * the toolchain watch that says when the shim can go;
  * the zmeshopt_canary_shim_* set mirrors src/abi_shim.c's reordered shapes
  * — the path the package actually ships — and must be bit-exact on every
  * backend. src/abi_check.zig pins the raw late-float count at 8; a

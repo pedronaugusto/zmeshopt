@@ -20,7 +20,8 @@ header declares, the experimental surface included — with:
 - An ABI shim (`src/abi_shim.c`) for the two caller shapes Zig 0.16.0 was
   measured miscompiling — a float after more than 6 integer-class parameters
   (self-hosted x86-64 backend), and the all-float `CoverageStatistics`
-  return (the LLVM backend too, everywhere it crosses in registers).
+  return (the LLVM backend too, on both ABIs measured returning it in
+  registers).
   The affected functions cross through clang-compiled forwarders on every
   backend, because a wrong argument must be impossible to ship, not merely
   detected. Canaries (`tests/abi_canary.c` + `src/abi_canary_test.zig`)

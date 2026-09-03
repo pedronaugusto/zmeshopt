@@ -6,9 +6,10 @@
 # a failure can be reproduced and fixed on your own machine instead of in a
 # pull request. Install it as a pre-push hook with ci/install-hooks.sh.
 #
-# The one difference from the hosted run: CI executes the suite on Linux,
-# macOS and Windows, whereas this executes it on whichever host you are on and
-# cross-compiles the rest.
+# What the hosted run has that this cannot: the suite executed on Linux,
+# macOS and Windows (this executes it on the host it runs on and
+# cross-compiles the rest), the MSVC test arm, and the vendor-integrity job,
+# which needs the network.
 #
 # Usage:
 #   ci/run.sh                 # full matrix
@@ -17,9 +18,10 @@
 #   ci/run.sh --drift-target=<triple>
 #                             # full matrix, and prove the ABI guard fires on
 #                             # that ABI too. Out of the default because it
-#                             # rebuilds 20 times and this file is a pre-push
-#                             # hook; the hosted abi-drift-msvc job runs it on
-#                             # every push, and a release should run it here.
+#                             # rebuilds once per mutation and this file is a
+#                             # pre-push hook; the hosted abi-drift-msvc job
+#                             # runs it on every push, and a release should
+#                             # run it here.
 #
 # Exits non-zero if any step fails, after running every step — a single
 # failure should not hide the others.
@@ -105,9 +107,10 @@ run 'comment standard' ci/check-comments.sh
 # and the two reimplemented inline helpers have a ledger row with a live test.
 run 'coverage (Zig surface, both directions)' ci/check-coverage.sh
 
-# Every number README.md and UPSTREAM.md publish, recomputed and compared. It
-# builds once (the test count is what the build reports, not a grep), so it
-# sits with the tests rather than with the one-second checks above.
+# Every number README.md publishes, recomputed and compared, and no other
+# number in any document written by hand. It builds once (the test count is
+# what the build reports, not a grep), so it sits with the tests rather than
+# with the one-second checks above.
 run 'documented numbers' ci/check-docs.sh
 
 # CI runs the scripts in ci/ by path. One committed without its executable bit
@@ -159,10 +162,9 @@ if [ $QUICK -eq 0 ]; then
   run 'abi drift (mutation proof)' ci/check-abi-drift.sh
 
   # The same proof under a second ABI, opt-in. src/abi_check.zig compares
-  # src/c/*.zig against @cImport of the header as preprocessed FOR A TARGET,
-  # so the run above proves the guard fires on this host's ABI and says
-  # nothing about another: a C enum is `int` under MSVC and `unsigned int`
-  # under the Itanium ABI, and meshopt_EncodeExpMode crosses in signatures.
+  # src/c/*.zig against @cImport of the header as preprocessed and laid out
+  # FOR A TARGET, so the run above proves the guard fires on this host's ABI
+  # and says nothing about another.
   [ -z "$DRIFT_TARGET" ] ||
     run "abi drift ($DRIFT_TARGET)" ci/check-abi-drift.sh -Dtarget="$DRIFT_TARGET"
 fi

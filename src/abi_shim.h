@@ -4,13 +4,13 @@
  * Zig 0.16.0 was measured (CI, 2026-09-02) miscompiling two caller shapes
  * upstream's ABI requires: an f32 argument after more than 6 integer-class
  * arguments (self-hosted backend, x86_64-linux) and an all-float 16-byte
- * struct return (both backends, x86_64-linux and aarch64-macos). Each forwarder
- * re-spells one affected function with its floats FIRST, or its struct
- * return as an out-parameter, and tail-calls upstream. Compiled by clang
- * regardless of the Zig backend, and called by the idiomatic layer on every
- * backend: one code path, tested everywhere. src/abi_check.zig holds
- * src/shim.zig's externs to these prototypes; the toolchain watch in
- * src/abi_canary_test.zig retires the shim when a broken backend is fixed.
+ * struct return (both backends on x86_64-linux, the LLVM backend on
+ * aarch64-macos). Each forwarder re-spells one affected function with its
+ * floats FIRST, or its struct return as an out-parameter, and tail-calls
+ * upstream. Compiled by clang regardless of the Zig backend, and called by
+ * the idiomatic layer on every backend: one code path, tested everywhere.
+ * src/abi_check.zig holds src/shim.zig's externs to these prototypes; the
+ * toolchain watch in src/abi_canary_test.zig says when the shim can go.
  */
 #ifndef ZMESHOPT_ABI_SHIM_H
 #define ZMESHOPT_ABI_SHIM_H

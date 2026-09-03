@@ -8,7 +8,8 @@
 //! `modules` is the point of keeping this file at all: `abi_check.zig`
 //! discovers what to check by walking it, so a module added here is swept
 //! automatically, and a module not added here is a module the guard does not
-//! cover — which its coverage floors turn into a build failure.
+//! cover — which its reverse sweep turns into a compile error, one per header
+//! function the missing module declares.
 
 pub const remap = @import("c/remap.zig");
 pub const cache = @import("c/cache.zig");

@@ -98,6 +98,13 @@ emit ci_cross_targets \
   "$(sed -n '/^for target in/,/^do$/p' ci/run.sh | grep -cE '^ +[a-z0-9_]+-')" \
   'further targets `ci/run.sh` cross-compiles'
 
+if [ "$header_fns" != "$externs" ]; then
+  printf '\nupstream_entry_points and zig_externs must match: the reverse sweep\n'
+  printf 'in src/abi_check.zig pairs them at build time, so a difference is a\n'
+  printf 'bug in this script.\n'
+  exit 1
+fi
+
 #-----------------------------------------------------------------------------
 # Output
 #-----------------------------------------------------------------------------
@@ -134,10 +141,3 @@ fi
 for i in "${!keys[@]}"; do
   printf '%-26s %8s  %s\n' "${keys[$i]}" "${values[$i]}" "${descriptions[$i]}"
 done
-
-if [ "$header_fns" != "$externs" ]; then
-  printf '\nupstream_entry_points and zig_externs must match: the reverse sweep\n'
-  printf 'in src/abi_check.zig pairs them at build time, so a difference is a\n'
-  printf 'bug in this script.\n'
-  exit 1
-fi
