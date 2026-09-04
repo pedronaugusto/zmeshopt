@@ -4,7 +4,7 @@ Each entry says what the old shape could not express, so a port has the reason
 and not only the diff. Versions follow [semantic versioning](https://semver.org);
 before 1.0 the minor is the breaking one.
 
-## Unreleased
+## 0.2.0
 
 Precondition fixes only. No signature, ABI or behaviour change for a caller
 that was already inside the C contract; a caller that was outside it now gets
