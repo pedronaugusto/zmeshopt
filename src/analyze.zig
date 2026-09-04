@@ -5,6 +5,7 @@
 //! signals, not GPU predictions.
 
 const std = @import("std");
+const assert = std.debug.assert;
 const c = @import("c.zig").analyze;
 const contract = @import("contract.zig");
 const shim = @import("shim.zig");
@@ -17,12 +18,14 @@ pub const CoverageStatistics = c.CoverageStatistics;
 /// Vertex transform cache statistics under a simplified FIFO model.
 /// `warp_size` and `primgroup_size` may be 0 to skip those models.
 pub fn analyzeVertexCache(indices: []const u32, vertex_count: usize, cache_size: u32, warp_size: u32, primgroup_size: u32) VertexCacheStatistics {
+    assert(indices.len % 3 == 0);
     return c.meshopt_analyzeVertexCache(indices.ptr, indices.len, vertex_count, cache_size, warp_size, primgroup_size);
 }
 
 /// Vertex fetch statistics under a simplified direct-mapped cache model,
 /// for a buffer of `vertex_count` vertices of type `V`.
 pub fn analyzeVertexFetch(comptime V: type, indices: []const u32, vertex_count: usize) VertexFetchStatistics {
+    contract.checkVertexSize(V);
     return c.meshopt_analyzeVertexFetch(indices.ptr, indices.len, vertex_count, @sizeOf(V));
 }
 
@@ -30,6 +33,7 @@ pub fn analyzeVertexFetch(comptime V: type, indices: []const u32, vertex_count: 
 /// the position float3.
 pub fn analyzeOverdraw(comptime V: type, indices: []const u32, vertices: []const V) OverdrawStatistics {
     contract.checkVertex(V, 3);
+    assert(indices.len % 3 == 0);
     return c.meshopt_analyzeOverdraw(indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V));
 }
 
@@ -37,6 +41,7 @@ pub fn analyzeOverdraw(comptime V: type, indices: []const u32, vertices: []const
 /// rasterizer.
 pub fn analyzeCoverage(comptime V: type, indices: []const u32, vertices: []const V) CoverageStatistics {
     contract.checkVertex(V, 3);
+    assert(indices.len % 3 == 0);
     // Out-parameter crossing via src/abi_shim.c: the all-float by-value
     // return is a measured self-hosted-backend miscompile (src/shim.zig).
     var stats: CoverageStatistics = undefined;

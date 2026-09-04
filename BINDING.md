@@ -58,7 +58,12 @@ camelCase so its documentation stays searchable.
 - **Vertex streams are `comptime V`.** A wrapper over per-vertex data takes
   `comptime V: type` and `[]const V`, and `src/contract.zig`'s `checkVertex`
   refuses at compile time a `V` whose size or alignment cannot carry the
-  leading floats upstream reads. The C stride is `@sizeOf(V)`.
+  leading floats upstream reads, or whose size exceeds the stride ceiling
+  every entry point asserts. The C stride is `@sizeOf(V)`.
+- **A precondition is carried over whole.** Where upstream asserts a range,
+  the wrapper asserts both ends of it, not just the end a caller is likely to
+  reach; where it asserts that an index buffer is whole triangles, so does
+  every wrapper that takes one.
 - **Codec conventions become error unions.** Encoders returning 0 for "buffer
   too small" return `error.BufferTooSmall` or the written prefix slice;
   decoders returning nonzero return `error.Malformed`. Version knobs are

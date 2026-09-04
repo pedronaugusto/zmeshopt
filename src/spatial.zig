@@ -20,6 +20,7 @@ pub fn spatialSortRemap(comptime V: type, destination: []u32, vertices: []const 
 /// result can feed other optimizers such as `optimizeVertexCache`.
 pub fn spatialSortTriangles(comptime V: type, destination: []u32, indices: []const u32, vertices: []const V) void {
     contract.checkVertex(V, 3);
+    assert(indices.len % 3 == 0);
     assert(destination.len >= indices.len);
     c.meshopt_spatialSortTriangles(destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V));
 }

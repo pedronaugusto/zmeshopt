@@ -17,15 +17,27 @@ pub const RemapCallback = c.RemapCallback;
 /// vertex equality; returns the unique vertex count. `destination.len` is the
 /// vertex count; pass `indices == null` for unindexed input.
 pub fn generateVertexRemap(comptime V: type, destination: []u32, indices: ?[]const u32, vertices: []const V) usize {
+    contract.checkVertexSize(V);
     assert(destination.len == vertices.len);
     const index_count = if (indices) |ix| ix.len else vertices.len;
     return c.meshopt_generateVertexRemap(destination.ptr, if (indices) |ix| ix.ptr else null, index_count, vertices.ptr, vertices.len, @sizeOf(V));
 }
 
-/// `generateVertexRemap` over multiple vertex streams (at most 16).
+/// Whether the multi-stream entry points can hash these streams: upstream
+/// bounds the stream count at both ends, and every stream's key size the same
+/// way it bounds one opaque vertex size (indexgenerator.cpp:408-413).
+fn streamsSupported(streams: []const Stream) bool {
+    if (streams.len < 1 or streams.len > 16) return false;
+    for (streams) |s| {
+        if (s.size < 1 or s.size > 256 or s.size > s.stride) return false;
+    }
+    return true;
+}
+
+/// `generateVertexRemap` over multiple vertex streams (1 to 16).
 /// `destination.len` is the vertex count.
 pub fn generateVertexRemapMulti(destination: []u32, indices: ?[]const u32, streams: []const Stream) usize {
-    assert(streams.len <= 16);
+    assert(streamsSupported(streams));
     const index_count = if (indices) |ix| ix.len else destination.len;
     return c.meshopt_generateVertexRemapMulti(destination.ptr, if (indices) |ix| ix.ptr else null, index_count, destination.len, streams.ptr, streams.len);
 }
@@ -42,6 +54,7 @@ pub fn generateVertexRemapCustom(comptime V: type, destination: []u32, indices: 
 /// Applies a remap table to a vertex buffer; `destination.len` must be the
 /// unique vertex count the generating call returned.
 pub fn remapVertexBuffer(comptime V: type, destination: []V, vertices: []const V, remap: []const u32) void {
+    contract.checkVertexSize(V);
     assert(remap.len == vertices.len);
     c.meshopt_remapVertexBuffer(destination.ptr, vertices.ptr, vertices.len, @sizeOf(V), remap.ptr);
 }
@@ -57,16 +70,18 @@ pub fn remapIndexBuffer(destination: []u32, indices: ?[]const u32, remap: []cons
 /// (opposite windings preserved); returns the remaining index count. The
 /// first `key_bytes` of each vertex are the equality key.
 pub fn filterIndexBuffer(comptime V: type, destination: []u32, indices: []const u32, vertices: []const V, key_bytes: usize) usize {
+    assert(indices.len % 3 == 0);
     assert(destination.len >= indices.len);
-    assert(key_bytes <= @sizeOf(V));
+    assert(key_bytes >= 1 and key_bytes <= 256 and key_bytes <= @sizeOf(V));
     return c.meshopt_filterIndexBuffer(destination.ptr, indices.ptr, indices.len, vertices.ptr, vertices.len, key_bytes, @sizeOf(V));
 }
 
-/// EXPERIMENTAL upstream: `filterIndexBuffer` over multiple streams (at most
+/// EXPERIMENTAL upstream: `filterIndexBuffer` over multiple streams (1 to
 /// 16). `vertex_count` cannot come from a slice here — streams carry no count.
 pub fn filterIndexBufferMulti(destination: []u32, indices: []const u32, vertex_count: usize, streams: []const Stream) usize {
+    assert(indices.len % 3 == 0);
     assert(destination.len >= indices.len);
-    assert(streams.len <= 16);
+    assert(streamsSupported(streams));
     return c.meshopt_filterIndexBufferMulti(destination.ptr, indices.ptr, indices.len, vertex_count, streams.ptr, streams.len);
 }
 
@@ -74,15 +89,17 @@ pub fn filterIndexBufferMulti(destination: []u32, indices: []const u32, vertex_c
 /// first `key_bytes` of each) to one representative, for Z pre-pass or
 /// shadowmap draws with the original vertex buffer.
 pub fn generateShadowIndexBuffer(comptime V: type, destination: []u32, indices: []const u32, vertices: []const V, key_bytes: usize) void {
+    assert(indices.len % 3 == 0);
     assert(destination.len >= indices.len);
-    assert(key_bytes <= @sizeOf(V));
+    assert(key_bytes >= 1 and key_bytes <= 256 and key_bytes <= @sizeOf(V));
     c.meshopt_generateShadowIndexBuffer(destination.ptr, indices.ptr, indices.len, vertices.ptr, vertices.len, key_bytes, @sizeOf(V));
 }
 
-/// `generateShadowIndexBuffer` over multiple streams (at most 16).
+/// `generateShadowIndexBuffer` over multiple streams (1 to 16).
 pub fn generateShadowIndexBufferMulti(destination: []u32, indices: []const u32, vertex_count: usize, streams: []const Stream) void {
+    assert(indices.len % 3 == 0);
     assert(destination.len >= indices.len);
-    assert(streams.len <= 16);
+    assert(streamsSupported(streams));
     c.meshopt_generateShadowIndexBufferMulti(destination.ptr, indices.ptr, indices.len, vertex_count, streams.ptr, streams.len);
 }
 
@@ -98,6 +115,7 @@ pub fn generatePositionRemap(comptime V: type, destination: []u32, vertices: []c
 /// geometry shaders; `destination.len` must be at least `indices.len * 2`.
 pub fn generateAdjacencyIndexBuffer(comptime V: type, destination: []u32, indices: []const u32, vertices: []const V) void {
     contract.checkVertex(V, 3);
+    assert(indices.len % 3 == 0);
     assert(destination.len >= indices.len * 2);
     c.meshopt_generateAdjacencyIndexBuffer(destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V));
 }
@@ -106,6 +124,7 @@ pub fn generateAdjacencyIndexBuffer(comptime V: type, destination: []u32, indice
 /// `destination.len` must be at least `indices.len * 4`.
 pub fn generateTessellationIndexBuffer(comptime V: type, destination: []u32, indices: []const u32, vertices: []const V) void {
     contract.checkVertex(V, 3);
+    assert(indices.len % 3 == 0);
     assert(destination.len >= indices.len * 4);
     c.meshopt_generateTessellationIndexBuffer(destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V));
 }
@@ -114,6 +133,7 @@ pub fn generateTessellationIndexBuffer(comptime V: type, destination: []u32, ind
 /// primitive id; returns the used prefix of `reorder`, which must hold
 /// `vertex_count + indices.len / 3` elements worst case.
 pub fn generateProvokingIndexBuffer(destination: []u32, reorder: []u32, indices: []const u32, vertex_count: usize) []u32 {
+    assert(indices.len % 3 == 0);
     assert(destination.len >= indices.len);
     assert(reorder.len >= vertex_count + indices.len / 3);
     const n = c.meshopt_generateProvokingIndexBuffer(destination.ptr, reorder.ptr, indices.ptr, indices.len, vertex_count);
@@ -150,6 +170,20 @@ test generateVertexRemapMulti {
     const indices = [_]u32{ 0, 1, 2 };
     const unique = generateVertexRemapMulti(&remap, &indices, &streams);
     try std.testing.expectEqual(@as(usize, 2), unique);
+}
+
+test streamsSupported {
+    const data: [4]f32 = @splat(0);
+    const one = [_]Stream{.{ .data = &data, .size = 12, .stride = 16 }};
+    try std.testing.expect(streamsSupported(&one));
+    // Both ends of every rule upstream states on a stream: no streams at
+    // all, a key of 0 bytes, a key over the ceiling, a key wider than the
+    // stride it is read at.
+    try std.testing.expect(!streamsSupported(&.{}));
+    try std.testing.expect(!streamsSupported(&(one ** 17)));
+    try std.testing.expect(!streamsSupported(&.{.{ .data = &data, .size = 0, .stride = 16 }}));
+    try std.testing.expect(!streamsSupported(&.{.{ .data = &data, .size = 257, .stride = 512 }}));
+    try std.testing.expect(!streamsSupported(&.{.{ .data = &data, .size = 16, .stride = 12 }}));
 }
 
 test generateShadowIndexBuffer {

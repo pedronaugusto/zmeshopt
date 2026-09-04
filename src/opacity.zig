@@ -36,6 +36,7 @@ pub const AlphaTexture = struct {
 /// texel area. `V`'s first 8 bytes are the UV float2.
 pub fn opacityMapMeasure(comptime V: type, levels: []u8, sources: []u32, omm_indices: []c_int, indices: []const u32, uvs: []const V, texture_width: u32, texture_height: u32, max_level: u4, target_edge: f32) usize {
     contract.checkVertex(V, 2);
+    assert(indices.len % 3 == 0);
     const triangle_count = indices.len / 3;
     assert(levels.len >= triangle_count and sources.len >= triangle_count);
     assert(omm_indices.len >= triangle_count);

@@ -62,6 +62,7 @@ fn lockPtr(vertex_lock: ?[]const VertexFlags, vertex_count: usize) ?[*]const u8 
 /// simplifier may stop short on topology or `target_error`).
 pub fn simplify(comptime V: type, destination: []u32, indices: []const u32, vertices: []const V, target_index_count: usize, target_error: f32, options: Options) Result {
     contract.checkVertex(V, 3);
+    assert(indices.len % 3 == 0);
     assert(destination.len >= indices.len);
     var err: f32 = 0;
     const n = shim.zmeshopt_shim_simplify(target_error, destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), target_index_count, options, &err);
@@ -72,6 +73,7 @@ pub fn simplify(comptime V: type, destination: []u32, indices: []const u32, vert
 /// optional per-vertex lock/protect/priority array.
 pub fn simplifyWithAttributes(comptime V: type, destination: []u32, indices: []const u32, vertices: []const V, attributes: ?Attributes, vertex_lock: ?[]const VertexFlags, target_index_count: usize, target_error: f32, options: Options) Result {
     contract.checkVertex(V, 3);
+    assert(indices.len % 3 == 0);
     assert(destination.len >= indices.len);
     if (attributes) |attr| assert(attr.weights.len <= 32);
     var err: f32 = 0;
@@ -100,6 +102,7 @@ pub fn simplifyWithAttributes(comptime V: type, destination: []u32, indices: []c
 /// the returned indices are a prefix of `indices`.
 pub fn simplifyWithUpdate(comptime V: type, indices: []u32, vertices: []V, attributes: ?MutableAttributes, vertex_lock: ?[]const VertexFlags, target_index_count: usize, target_error: f32, options: Options) Result {
     contract.checkVertex(V, 3);
+    assert(indices.len % 3 == 0);
     if (attributes) |attr| assert(attr.weights.len <= 32);
     var err: f32 = 0;
     const n = shim.zmeshopt_shim_simplifyWithUpdate(
@@ -126,6 +129,7 @@ pub fn simplifyWithUpdate(comptime V: type, indices: []u32, vertices: []V, attri
 /// sharing a position; `target_error` is in [0..1].
 pub fn simplifySloppy(comptime V: type, destination: []u32, indices: []const u32, vertices: []const V, vertex_lock: ?[]const VertexFlags, target_index_count: usize, target_error: f32) Result {
     contract.checkVertex(V, 3);
+    assert(indices.len % 3 == 0);
     assert(destination.len >= indices.len);
     var err: f32 = 0;
     const n = shim.zmeshopt_shim_simplifySloppy(target_error, destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), lockPtr(vertex_lock, vertices.len), target_index_count, &err);
@@ -136,6 +140,7 @@ pub fn simplifySloppy(comptime V: type, destination: []u32, indices: []const u32
 /// `destination`. `target_error` is in [0..1], relative to mesh extents.
 pub fn simplifyPrune(comptime V: type, destination: []u32, indices: []const u32, vertices: []const V, target_error: f32) []u32 {
     contract.checkVertex(V, 3);
+    assert(indices.len % 3 == 0);
     assert(destination.len >= indices.len);
     const n = c.meshopt_simplifyPrune(destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), target_error);
     return destination[0..n];
