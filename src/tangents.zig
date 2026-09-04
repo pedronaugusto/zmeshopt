@@ -21,6 +21,9 @@ pub fn generateTangents(comptime P: type, comptime N: type, comptime U: type, re
     contract.checkVertex(U, 2);
     assert(normals.len == positions.len and uvs.len == positions.len);
     const index_count = if (indices) |ix| ix.len else positions.len;
+    // tangentspace.cpp:383 asserts the count either way, so unindexed input
+    // has to be whole triangles too.
+    assert(index_count % 3 == 0);
     assert(result.len >= index_count);
     c.meshopt_generateTangents(
         @ptrCast(result.ptr),

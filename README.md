@@ -121,9 +121,15 @@ a named panic in safe builds instead of a heap corruption in all of them.
 Vertex data is a `comptime V: type` and a `[]const V`: the stride is
 `@sizeOf(V)`, and `src/contract.zig` refuses at compile time a `V` that
 cannot carry the leading floats upstream reads (too small, misaligned, or not
-a multiple of the scalar size). Functions that read only positions take the
+a multiple of the scalar size) or that overruns the stride ceiling upstream
+asserts (over `256` bytes). Functions that read only positions take the
 same `V` and use its leading three floats, which is exactly upstream's
 `vertex_positions` + stride contract.
+
+Every other precondition upstream states is carried over whole rather than in
+part: both ends of a range, and the whole-triangles rule on any index buffer
+that stands for a mesh. A range the wrapper keeps only the upper half of is
+a gate that passes the arguments most likely to be wrong.
 
 Upstream's return-code conventions become error unions where they signal
 failure — an encoder that returns 0 for "buffer too small" returns
@@ -248,10 +254,10 @@ artifact are each driven by a real consumer there.
 | **85** | upstream C entry points (`MESHOPTIMIZER_API`/`_EXPERIMENTAL` in the vendored header) |
 | **85** | Zig externs (`pub extern fn` in `src/c/*.zig`) |
 | **8** | of them marked experimental by upstream, bound and labelled |
-| **66** | Zig tests `zig build test` executes |
+| **71** | Zig tests `zig build test` executes |
 | **8** | assertions in the standalone C smoke test |
 | **20** | vendored meshoptimizer translation units `build.zig` compiles |
-| **3718** | Zig source lines (`src/`) |
+| **3859** | Zig source lines (`src/`) |
 | **22** | deliberate drifts `ci/check-abi-drift.sh` must refuse |
 | **24** | steps `ci/run.sh` runs |
 | **7** | further targets `ci/run.sh` cross-compiles |

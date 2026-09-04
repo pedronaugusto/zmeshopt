@@ -11,6 +11,7 @@ const c = @import("c.zig").stripify;
 /// triangles; returns the written prefix. Size `destination` with
 /// `stripifyBound`.
 pub fn stripify(destination: []u32, indices: []const u32, vertex_count: usize, restart_index: u32) []u32 {
+    assert(indices.len % 3 == 0);
     assert(destination.len >= stripifyBound(indices.len));
     const n = c.meshopt_stripify(destination.ptr, indices.ptr, indices.len, vertex_count, restart_index);
     return destination[0..n];
@@ -18,6 +19,7 @@ pub fn stripify(destination: []u32, indices: []const u32, vertex_count: usize, r
 
 /// Worst-case output size for `stripify`.
 pub fn stripifyBound(index_count: usize) usize {
+    assert(index_count % 3 == 0);
     return c.meshopt_stripifyBound(index_count);
 }
 

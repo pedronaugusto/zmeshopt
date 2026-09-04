@@ -10,6 +10,7 @@ const contract = @import("contract.zig");
 /// Reorders indices to reduce GPU vertex shader invocations. Call per draw
 /// range if the index buffer holds several. `destination` may alias `indices`.
 pub fn optimizeVertexCache(destination: []u32, indices: []const u32, vertex_count: usize) void {
+    assert(indices.len % 3 == 0);
     assert(destination.len >= indices.len);
     c.meshopt_optimizeVertexCache(destination.ptr, indices.ptr, indices.len, vertex_count);
 }
@@ -17,6 +18,7 @@ pub fn optimizeVertexCache(destination: []u32, indices: []const u32, vertex_coun
 /// Vertex cache optimizer tuned for strip-like orders: worse cache results
 /// than `optimizeVertexCache`, better strip length and compression.
 pub fn optimizeVertexCacheStrip(destination: []u32, indices: []const u32, vertex_count: usize) void {
+    assert(indices.len % 3 == 0);
     assert(destination.len >= indices.len);
     c.meshopt_optimizeVertexCacheStrip(destination.ptr, indices.ptr, indices.len, vertex_count);
 }
@@ -24,6 +26,7 @@ pub fn optimizeVertexCacheStrip(destination: []u32, indices: []const u32, vertex
 /// Vertex cache optimizer for FIFO caches: ~3x faster, inferior results.
 /// `cache_size` should be below the actual GPU cache size.
 pub fn optimizeVertexCacheFifo(destination: []u32, indices: []const u32, vertex_count: usize, cache_size: u32) void {
+    assert(indices.len % 3 == 0);
     assert(destination.len >= indices.len);
     c.meshopt_optimizeVertexCacheFifo(destination.ptr, indices.ptr, indices.len, vertex_count, cache_size);
 }
@@ -34,6 +37,7 @@ pub fn optimizeVertexCacheFifo(destination: []u32, indices: []const u32, vertex_
 /// `destination` may alias `indices` (overdrawoptimizer.cpp:284).
 pub fn optimizeOverdraw(comptime V: type, destination: []u32, indices: []const u32, vertices: []const V, threshold: f32) void {
     contract.checkVertex(V, 3);
+    assert(indices.len % 3 == 0);
     assert(destination.len >= indices.len);
     c.meshopt_optimizeOverdraw(destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), threshold);
 }
@@ -43,6 +47,7 @@ pub fn optimizeOverdraw(comptime V: type, destination: []u32, indices: []const u
 /// multiple streams use `optimizeVertexFetchRemap` plus the remap functions.
 /// `destination` may alias `vertices` (vfetchoptimizer.cpp:35).
 pub fn optimizeVertexFetch(comptime V: type, destination: []V, indices: []u32, vertices: []const V) usize {
+    contract.checkVertexSize(V);
     assert(destination.len >= vertices.len);
     return c.meshopt_optimizeVertexFetch(destination.ptr, indices.ptr, indices.len, vertices.ptr, vertices.len, @sizeOf(V));
 }
