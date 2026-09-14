@@ -2,37 +2,17 @@
 
 [![CI](https://github.com/pedronaugusto/zmeshopt/actions/workflows/ci.yml/badge.svg)](https://github.com/pedronaugusto/zmeshopt/actions/workflows/ci.yml)
 
-Zig bindings for [meshoptimizer](https://github.com/zeux/meshoptimizer) —
-mesh indexing, optimization, simplification, compression, and cluster
-(meshlet) building.
-
-- Vendored, pinned upstream meshoptimizer (v1.2). No fork, no patches. See
-  [UPSTREAM.md](UPSTREAM.md).
-- **Complete.** Every function the upstream header declares is bound — the
-  experimental surface included, marked as such — and completeness is a
-  compile-time property, not a promise: the ABI cross-check's reverse sweep
-  fails the build over an unbound header function.
-- **The header is the ABI.** Upstream's public surface is `extern "C"` in
-  one pure-C header, so the hand-written Zig externs mirror it directly and
-  drift between them is a **build failure**, not a memory-corruption bug:
-  every struct field, signature, enumerator and flag bit is cross-checked at
-  comptime, with no hand-kept list of what to check. The one C file in
-  `src/` is a small ABI shim dodging two measured Zig-backend caller
-  miscompiles — itself gate-checked, canary-watched, and scheduled for
-  retirement by a failing test rather than by memory (see
-  [The ABI guard](#the-abi-guard)).
-- An idiomatic slice-based layer over all of it — counts derived from slice
-  lengths, `comptime`-typed vertex streams, error unions where upstream
-  signals through return codes — plus host allocator injection: upstream's
-  temporary allocations can go through your `std.mem.Allocator`.
+Zig bindings for [meshoptimizer](https://github.com/zeux/meshoptimizer):
+indexing and remapping, vertex cache and overdraw optimization,
+simplification, index and vertex compression, meshlet building, and the
+analyzers that measure the results. Upstream is vendored at v1.2 and is
+unmodified — see [UPSTREAM.md](UPSTREAM.md).
 
 ## Usage
 
-The block below is not written here: it is a region of
-[`examples/usage.zig`](examples/usage.zig), which `zig build examples` builds
-and RUNS, extracted by `ci/readme_usage.sh` and compared by CI. A snippet in a
-README is a claim about how the library is used, and this one is a claim
-something executes.
+The block below is a region of [`examples/usage.zig`](examples/usage.zig),
+which `zig build examples` builds and runs; `ci/readme_usage.sh` extracts it
+and CI compares the result against this file.
 
 <!-- BEGIN GENERATED ci/readme_usage.sh -->
 ```zig
@@ -87,163 +67,209 @@ const encoded_indices = try zmeshopt.encodeIndexBuffer(encoded_indices_buffer, i
 ```
 <!-- END GENERATED -->
 
-Add it as a dependency and link the module:
+## Install
+
+```sh
+zig fetch --save git+https://github.com/pedronaugusto/zmeshopt#v0.2.0
+```
 
 ```zig
 const zmeshopt_dep = b.dependency("zmeshopt", .{ .target = target, .optimize = optimize });
 exe.root_module.addImport("zmeshopt", zmeshopt_dep.module("zmeshopt"));
 ```
 
-A C or C++ host takes the library and upstream's own installed header instead:
+A C or C++ host links the library and includes upstream's own header instead:
 
 ```zig
 exe.root_module.linkLibrary(zmeshopt_dep.artifact("zmeshopt"));  // then #include <meshoptimizer.h>
 ```
 
+Requires Zig 0.16.0. zmeshopt has no package dependencies and the vendored C++
+is compiled by the Zig toolchain, so there is nothing else to install.
+
 Forward `optimize` as shown. zmeshopt does not turn on Zig's C sanitizer for
-you (see [Build hygiene](#build-hygiene)), so a mismatched build mode is a
-size difference rather than an unresolved `__ubsan_handle_*` symbol — but a
-Debug library inside a release executable is still not what you meant.
+you (see [Build options](#build-options)), so a mismatched build mode is a size
+difference rather than an unresolved `__ubsan_handle_*` symbol — but a Debug
+library inside a release executable is still not what you meant.
+
+## The API
+
+`zmeshopt` re-exports every wrapper flat, under upstream's name minus the
+`meshopt_` prefix — `simplify`, `buildMeshlets`, `encodeVertexBuffer` — so
+upstream's documentation stays searchable.
+
+| Area | What it covers |
+|---|---|
+| Indexing | vertex remap generation and application, position remap, shadow and adjacency index buffers, tessellation patches, the provoking-vertex reorder |
+| Optimizers | vertex cache (direct, strip and FIFO), overdraw, vertex fetch |
+| Simplification | attribute-aware, sloppy, points, pruning, with scale and error reporting |
+| Compression | index and vertex codecs with their decoders, the meshlet codec, per-attribute filters in both directions |
+| Clusters | meshlet builders and culling bounds, cluster partitioning, spatial sorting and clustering |
+| Analyzers | vertex cache, overdraw, coverage, vertex fetch |
+| Other | triangle strips, opacity micromaps, tangent generation, quantization |
+
+Every function `meshoptimizer.h` declares at v1.2 has an extern in `src/c/`
+and an idiomatic wrapper above it, the experimental surface included; each
+experimental function carries the marker in its doc comment, because upstream
+reserves the right to change those between minor versions. Both halves are
+gated: the reverse sweep in `src/abi_check.zig` fails the build over a header
+function with no extern, and `ci/check-coverage.sh` fails over an extern with
+no idiomatic caller.
+
+Two things sit outside that. `meshopt_simplifyEdge` and
+`meshopt_optimizeVertexCacheTable` have external linkage but no declaration in
+the header — upstream's internal seams, and the second takes a C++ type, so it
+is not C-callable. `meshopt_quantizeUnorm` and `meshopt_quantizeSnorm` are
+C++-only inline helpers with no symbol to bind, so they are reimplemented in
+Zig and held to the header by `ci/check-coverage.sh` through
+[`tools/zig_reimpl.txt`](tools/zig_reimpl.txt).
+
+The raw externs stay public under `zmeshopt.c` for a caller who wants the C
+contract verbatim. One caveat comes with them: the functions listed in
+[`tools/zig_surface_exceptions.txt`](tools/zig_surface_exceptions.txt) have a
+caller shape the toolchain was measured miscompiling, so calling *those*
+through `zmeshopt.c` reproduces the miscompile on the affected targets,
+silently. The idiomatic layer routes around it.
+
+zmeshopt handles no file format. For glTF documents carrying
+`EXT_meshopt_compression` it supplies the decode half only; see
+[docs/interop.md](docs/interop.md).
 
 ## Design
 
 ### Counts come from slices
 
-meshoptimizer's C signatures pass every buffer as pointer + count + stride.
-The Zig layer keeps the data flow and drops the redundancy: where the C
+meshoptimizer passes every buffer as pointer + count + stride. Where the C
 contract fixes a buffer's length — a remap generator's `destination` has one
 entry per input vertex — the wrapper takes the slice and derives the count
-from `len`. Where a length is a caller promise the wrapper cannot check at
-comptime (a worst-case scratch buffer, sized by a `Bound` function), the rule
-is a `std.debug.assert` with the formula in the doc comment, so a violation is
-a named panic in safe builds instead of a heap corruption in all of them.
+from `len`. Where the length is a caller promise no type can carry, such as a
+worst-case scratch buffer sized by a `Bound` function, the rule is a
+`std.debug.assert` with the formula in the doc comment, so a violation is a
+named panic in safe builds instead of a heap write in all of them. Both ends
+of every range upstream asserts are checked, and so is the whole-triangles
+rule on any index buffer that stands for a mesh.
 
-Vertex data is a `comptime V: type` and a `[]const V`: the stride is
-`@sizeOf(V)`, and `src/contract.zig` refuses at compile time a `V` that
-cannot carry the leading floats upstream reads (too small, misaligned, or not
-a multiple of the scalar size) or that overruns the stride ceiling upstream
-asserts (over `256` bytes). Functions that read only positions take the
-same `V` and use its leading three floats, which is exactly upstream's
-`vertex_positions` + stride contract.
+Vertex data is a `comptime V: type` and a `[]const V`; the stride is
+`@sizeOf(V)`. `src/contract.zig` refuses at compile time a `V` that cannot
+carry the leading floats upstream reads — too small, misaligned, or not a
+multiple of the scalar size — or that exceeds the stride ceiling upstream
+asserts. Functions that read only positions take the same `V` and use its
+leading three floats, which is upstream's `vertex_positions` + stride
+contract.
 
-Every other precondition upstream states is carried over whole rather than in
-part: both ends of a range, and the whole-triangles rule on any index buffer
-that stands for a mesh. A range the wrapper keeps only the upper half of is
-a gate that passes the arguments most likely to be wrong.
-
-Upstream's return-code conventions become error unions where they signal
-failure — an encoder that returns 0 for "buffer too small" returns
-`error.BufferTooSmall`, a decoder that rejects malformed input returns
-`error.Malformed` — and stay plain values where they are answers (a count, a
-score). Codec format versions are enums, so an invalid version is
+Upstream's return codes become error unions where they signal failure
+(`error.BufferTooSmall` from an encoder given too little room,
+`error.Malformed` from a decoder given bad input) and stay plain values where
+they are answers. Codec format versions are enums, so an invalid version is
 unrepresentable rather than an assert inside upstream.
 
-### Allocator injection, honestly scoped
+### Allocators
 
 `installZigAllocator` routes upstream's temporary allocations through a
-`std.mem.Allocator`. It is process-wide because
-[upstream's hook is](https://github.com/zeux/meshoptimizer/blob/v1.2/src/meshoptimizer.h#L1000) —
-that is surfaced rather than hidden behind a per-call parameter that could
-not be honoured. It is also **irreversible**: upstream gives no way to read
-the previous hooks back, so a "restore" could only pretend. Install once, at
-startup, before other threads call in; the raw `setAllocator` remains for a C
-host passing `malloc`/`free`-shaped functions.
+`std.mem.Allocator`. It covers every allocation upstream makes through its own
+hook, and nothing else: the hook is process-wide, so the install is too, and
+it is irreversible, because upstream gives no way to read the previous hooks
+back. Install once at startup, before other threads call in. The raw
+`setAllocator` remains for a C host passing `malloc`/`free`-shaped functions.
 
-The seam has one wrinkle worth knowing: upstream frees with `deallocate(ptr)`,
-no size, while a Zig allocator requires the size back. `src/memory.zig`
-bridges that with a size header stored ahead of each block — see
-[BINDING.md](BINDING.md) for the design and its trade-offs. The suite's
-balance test drives the seam through a counting allocator and requires every
-allocation to have been freed, so an unbalanced seam is a test failure.
+Upstream frees with `deallocate(ptr)` and no size, while a Zig allocator
+requires the size back, so `src/memory.zig` stores a size header ahead of each
+block; [BINDING.md](BINDING.md) has the layout and its cost. The suite drives
+the seam through a counting allocator and requires every allocation to have
+been freed.
 
 ### The ABI guard
 
-The Zig side hand-writes its `extern` declarations rather than running
-translate-c, so the wrapper gets exactly the types it wants and the shipped
-module never compiles C. Nothing in either compiler checks that those
-declarations still agree with `meshoptimizer.h`, and a `size_t` narrowed to
-`c_int` links cleanly and corrupts. `src/abi_check.zig` closes that: a
-comptime `@cImport` of the vendored header itself — in the test module only —
-compared against `src/c/*.zig` by reflection. Every struct field is paired
-**by name** with its own offset; every scalar's size, alignment, signedness
-and int-versus-float; every function's arity and full signature, function
-pointers signature-deep; every anonymous option enumerator reconstructed by
-naming convention and compared by value. A declaration the check cannot
-classify is a compile error rather than a silent pass.
+The externs are hand-written rather than produced by translate-c, so the
+wrapper gets the types it wants and the shipped module never compiles C.
+Nothing in either compiler checks that those declarations still agree with
+`meshoptimizer.h`, and a `size_t` narrowed to `c_int` links cleanly and
+corrupts. `src/abi_check.zig` closes that: a comptime `@cImport` of the
+vendored header, in the test module only, compared against `src/c/*.zig` by
+reflection — every field, signature, enumerator and flag bit, paired by name.
+A declaration it cannot classify is a compile error. `ci/check-abi-drift.sh`
+proves the guard is not vacuous by drifting the externs deliberately, one
+mutation at a time, and requiring each to be refused; it runs on the
+linux-gnu ABI and on MSVC's, because the header is compared as laid out for a
+target. [docs/abi-guard.md](docs/abi-guard.md) has the details.
 
-The same check sweeps the other direction: a function the header exports that
-`src/c/` does not declare — or declares as anything but an extern fn — fails
-the build. That sweep is the package's completeness gate; "binds all of
-upstream" is enforced, not promised. See [BINDING.md](BINDING.md) for the
-naming convention that makes the pairing work.
+Below what any declaration can express, Zig 0.16.0 was measured — by this
+repo's CI — miscompiling two caller shapes upstream's ABI requires: a float
+passed after many integer-class parameters, and an all-float small-struct
+return. The affected functions cross through `src/abi_shim.c`, clang-compiled
+forwarders that re-spell each shape into a measured-safe one, on every
+backend. Canaries assert the shim path argument for argument, and a toolchain
+watch asserts the raw shapes stay broken where they were measured broken, so a
+Zig release that fixes a backend turns the suite red and the shim is retired
+rather than kept. [BINDING.md](BINDING.md) has the measurements and the single
+defect underneath both shapes.
 
-The guard is the one test here that cannot test itself: a refactor that
-quietly makes it vacuous looks exactly like a passing build.
-`ci/check-abi-drift.sh` is the answer — deliberate drifts applied one at a
-time, each of which must be refused, including the struct-field swap that
-leaves every offset unchanged and so defeats any positional comparison, and
-four mutations against the coverage gate. It runs as two CI jobs, on the
-x86_64-linux-gnu ABI and on MSVC's, because the header is compared *as
-preprocessed and laid out for a target*, so a refusal proved on one ABI is
-not proved on the other.
+### Build options
 
-One class of hazard lives below anything a declaration can express: Zig
-0.16.0 was measured — by this repo's own CI — miscompiling two CALLER shapes
-upstream's ABI requires (a float passed after many integer-class parameters,
-on the self-hosted x86-64 backend; an all-float small-struct return, under
-the LLVM backend as well). The
-affected functions cross through `src/abi_shim.c`, clang-compiled forwarders
-that re-spell each shape into a measured-safe one, on every backend — one
-code path, tested everywhere. Runtime canaries hard-assert the shim path
-argument for argument, and a toolchain watch asserts the raw shapes stay
-broken where they were measured broken, so a Zig release that fixes a
-backend fails the watch — the signal to retire the shim rather than
-fossilise it. Zig 0.17 fixes both x86-64 shapes and leaves the aarch64 one,
-so that watch will fire on the next pin bump; [BINDING.md](BINDING.md) has
-the measurement, the single defect underneath both shapes, and what retires.
-
-### Build hygiene
-
-- Source lists are explicit, never globs — a re-vendor cannot silently change
-  what compiles.
-- UBSan is **not** blanket-disabled, and it is **not** on by default either.
-  `-Dsanitize_c=true` turns it on and zmeshopt's own CI runs Debug that way.
-  It stays off by default because Zig's C sanitizer emits calls into a
-  runtime linked only into a compilation that is itself sanitized: a consumer
-  who forgets to forward `optimize` would get an `undefined symbol:
-  __ubsan_handle_*` link failure naming nothing they can act on. A library
-  does not get to decide that its consumers are running a sanitizer.
+- `-Dsanitize_c=true` compiles the C++ with Zig's undefined-behaviour
+  sanitizer; zmeshopt's own CI runs Debug both ways. It is off by default
+  because the sanitizer emits calls into a runtime linked only into a
+  compilation that is itself sanitized, so a consumer who forgets to forward
+  `optimize` would get an `undefined symbol: __ubsan_handle_*` link failure
+  naming nothing they can act on.
 - `-Dsimd=false` compiles upstream's scalar codec paths
-  (`MESHOPTIMIZER_NO_SIMD`). Codegen-only — no type changes layout with it,
+  (`MESHOPTIMIZER_NO_SIMD`). Codegen only — no type changes layout with it,
   which is why there is no configuration handshake; see
   [UPSTREAM.md](UPSTREAM.md).
 - `-Dshared=true` builds the C library as a shared object.
-- Build options are declared once and mirrored into a Zig `options` module,
-  so the wrapper cannot disagree with how the C++ was compiled.
+- Source lists are explicit, never globs, so a re-vendor cannot silently
+  change what compiles. Options are declared once and mirrored into a Zig
+  `options` module, so the wrapper cannot disagree with how the C++ was
+  compiled.
+
+## Platforms
+
+| | Suite executed by CI | Compile-checked by CI |
+|---|---|---|
+| Linux | x86_64 (glibc) | + aarch64, musl |
+| macOS | aarch64 | + x86_64 |
+| Windows | x86_64, both the gnu and the MSVC ABI | + aarch64 |
+
+Compiling proves the sources and the build graph are portable; only an
+executed configuration proves behaviour, so the two are separate jobs. The
+badge at the top of this file reports the most recent run of that matrix.
+
+Pending: measured against a Zig 0.17 dev build, both x86-64 miscompiles the
+shim works around are fixed, so those forwarders retire at the next toolchain
+pin bump — the canary's toolchain watch fails until they do.
+`analyzeCoverage`'s reroute stays until Zig's C ABI classifier looks through
+array fields on aarch64.
 
 ## Testing
 
 ```sh
-zig build test
+zig build test        # the ABI cross-check, the canaries, the behavioural
+                      # suite, and the examples, which are built and run
+zig build test-c      # the installed header and library alone, from C
+ci/run.sh             # the whole matrix, the same steps CI runs
+ci/run.sh --quick     # native Debug only, for the inner loop
+ci/install-hooks.sh   # run ci/run.sh before every push
 ```
 
-runs everything: the ABI cross-check and canaries compile with the suite, the
-behavioural tests pin values (cache statistics, simplification error bounds,
-codec roundtrips), the C smoke test (`zig build test-c`) proves the installed
-header and library stand alone with no Zig in the picture, and the examples
-build and RUN. Codec roundtrip tests compare triangles
-**rotation-normalized**, because the index codec is free to rotate a
-triangle's corners.
+The behavioural tests pin values — cache statistics, simplification error
+bounds, codec roundtrips — rather than asserting that a call returned. Codec
+roundtrips compare triangles rotation-normalized, because the index codec is
+free to rotate a triangle's corners.
 
 ```sh
 zig build --build-file tests/consumer/build.zig run
 ```
 
-builds zmeshopt the way a downstream package does — through `b.dependency`,
+builds zmeshopt the way a downstream package does, through `b.dependency`,
 which resolves the artifact by scanning the dependency's install step and the
-header by its installed spelling. Neither is exercised by anything in `src/`,
-so both can break while the whole suite stays green. The Zig module and the C
-artifact are each driven by a real consumer there.
+header by its installed spelling — neither exercised by anything in `src/`.
+
+`ci/run.sh` reports every failure rather than stopping at the first. What only
+the hosted run has is the suite on the other two operating systems, the MSVC
+test arm, the vendor-integrity job, which needs the network, and the drift
+proof's second ABI — locally that one is opt-in
+(`ci/run.sh --drift-target=x86_64-windows-msvc`), because it rebuilds once per
+mutation.
 
 ### By the numbers
 
@@ -263,122 +289,18 @@ artifact are each driven by a real consumer there.
 | **7** | further targets `ci/run.sh` cross-compiles |
 <!-- END GENERATED -->
 
-Not one of those is typed into this file. `ci/measurements.sh` recomputes them
-from the tree, `ci/check-docs.sh` regenerates the block and fails the build if
-what is committed differs, and the same gate refuses any other hand-written
-number in these documents unless `tools/doc_numbers.txt` says why it cannot go
-stale. Adding a claim means adding its measurement.
-
-**What the numbers do not say.** A count is a count. Matching extern counts
-prove presence, not correctness — the oracle and the behavioural tests hold
-that, and `ci/check-coverage.sh` holds the idiomatic layer's reach one extern
-at a time. Source lines measure volume, not surface. And the gate itself has
-blind spots: a number spelled as a word, a single digit, a number joined to
-its neighbour by `-`, `.` or `/` (a date, a byte width), a number inside
-`code` — where it is an identifier or a citation rather than a claim — and a
-sentence that is wrong without containing a number at all.
-
-### Continuous integration
-
-CI runs the whole suite on **Linux, macOS and Windows**, in every optimize
-mode — Debug twice, with the C sanitizer on and off — plus the standalone C
-test, the scalar-codec arm, the downstream-consumer build, and on Windows the
-MSVC ABI as well as the gnu one. It also cross-compiles the further targets
-listed in `ci/run.sh`, verifies the vendored tree byte-for-byte against the
-pinned upstream commit, and runs the ABI drift mutation proof on both ABIs.
-See [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
-
-The same steps run locally, so a failure is reproducible on your machine
-before it is a red mark on a pull request. What only the hosted run has is
-the suite on the other two operating systems, the MSVC test arm, and the
-vendor-integrity job, which needs the network:
-
-```sh
-ci/run.sh            # the full matrix
-ci/run.sh --quick    # native Debug only, for the inner loop
-ci/install-hooks.sh  # run it automatically before every push
-```
-
-It reports every failure rather than stopping at the first. The drift proof
-runs on this host's ABI; the second arm is opt-in
-(`ci/run.sh --drift-target=x86_64-windows-msvc`) because it rebuilds once per
-mutation — CI runs it on every push, and a release should run both arms here.
-
-### Platform coverage
-
-| | Suite executed by CI | Compile-checked by CI |
-|---|---|---|
-| Linux | x86_64 (glibc) | + aarch64, musl |
-| macOS | aarch64 | + x86_64 |
-| Windows | x86_64, both gnu and MSVC ABI | + aarch64 |
-
-Compiling proves the sources and build graph are portable; only an executed
-configuration proves behaviour, which is why the two are separate jobs.
-
-That table describes the matrix, not a promise: **the badge at the top of
-this file is the authority on whether those runs have actually happened and
-passed.**
-
-## Scope
-
-Everything `meshoptimizer.h` declares, by area: index generation and
-remapping (including shadow and adjacency index buffers, tessellation
-patches, and the provoking-vertex reorder), vertex cache / overdraw / fetch
-optimization, index and vertex buffer compression with their decoders,
-per-attribute compression filters and their encoders, simplification
-(attribute-aware, sloppy, points, pruning) with scale and error reporting,
-triangle strips, efficiency analyzers (cache, overdraw, coverage, fetch),
-meshlet building with culling bounds, meshlet compression, cluster
-partitioning, spatial sorting and clustering, opacity micromaps, tangent
-generation, and quantization — the half-float and exponent helpers as
-externs, and the C++-only inline `quantizeUnorm`/`quantizeSnorm` reimplemented
-in Zig, held to the header by the coverage ledger
-([`tools/zig_reimpl.txt`](tools/zig_reimpl.txt)).
-
-Functions upstream marks experimental are bound and carry the marker in their
-doc comments — upstream reserves the right to change them between minor
-versions, which is a re-vendor concern the oracle catches, not a reason to be
-incomplete. The only exports not bound are the ones not in the header; see
-[UPSTREAM.md](UPSTREAM.md).
-
-The idiomatic layer is the intended surface, and `ci/check-coverage.sh`
-enforces that it reaches every extern — both directions, so an excuse file
-with a stale entry fails too. The raw externs stay public under `zmeshopt.c`
-for a caller that wants the C contract verbatim, with one caveat that is easy
-to miss: the functions listed in
-[`tools/zig_surface_exceptions.txt`](tools/zig_surface_exceptions.txt) are the
-ones whose caller shape [The ABI guard](#the-abi-guard) reports measured
-miscompiled, so calling *those* through `zmeshopt.c` reproduces the miscompile
-the idiomatic layer routes around — silently, and only on the affected
-targets.
-
-Deliberately out of scope: file formats, glTF, and scene handling. Those
-belong to a host or to a sibling package — this one binds exactly one
-upstream. For glTF documents carrying `EXT_meshopt_compression`, the sibling
-[zcgltf](https://github.com/pedronaugusto/zcgltf) parses and this package
-decodes; its README documents the pairing contract, and its `tests/interop/`
-package runs it end to end, in its CI, against a released zmeshopt.
+`ci/measurements.sh` recomputes each of those from the tree and
+`ci/check-docs.sh` fails the build if what is committed differs, or if a
+top-level document states any other number by hand. A count proves presence,
+not correctness; [docs/measurements.md](docs/measurements.md) has what these
+do not say and where the gate is blind.
 
 ## Contributing
 
-Issues and pull requests are welcome. Things to know before opening one:
-
-- **`libs/meshoptimizer` is vendored verbatim and must not be edited.**
-  Changes there are lost at the next re-vendor. If upstream needs fixing, fix
-  it upstream; if zmeshopt needs to work around upstream, do it in `src/` and
-  record it in [UPSTREAM.md](UPSTREAM.md).
-- **Run `ci/run.sh` before pushing** — or `ci/install-hooks.sh` once, and it
-  runs itself. It is the same matrix CI runs.
-- **Comments state a contract, not a narrative.** `ci/check-comments.sh`
-  enforces two things and will fail a pull request over either: block length
-  caps, and the register — documentation, not conversation. The cap never
-  justifies dropping a fact: units, ownership, sizing rules, error conditions
-  and aliasing guarantees come first; if a block cannot hold them, shorten
-  the prose around them.
-- [BINDING.md](BINDING.md) is the contract for how surface is shaped.
-
-New source files are added to the explicit lists in `build.zig` deliberately;
-there are no globs, so nothing starts compiling by accident.
+Issues and pull requests are welcome. `libs/meshoptimizer` is vendored
+verbatim and must not be edited; run `ci/run.sh` before pushing.
+[docs/contributing.md](docs/contributing.md) has the rest,
+[BINDING.md](BINDING.md) the contract for how surface is shaped.
 
 ## Licence
 
