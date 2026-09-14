@@ -230,9 +230,8 @@ defect underneath both shapes.
 | macOS | aarch64 | + x86_64 |
 | Windows | x86_64, both the gnu and the MSVC ABI | + aarch64 |
 
-Compiling proves the sources and the build graph are portable; only an
-executed configuration proves behaviour, so the two are separate jobs. The
-badge at the top of this file reports the most recent run of that matrix.
+Every job in that matrix passed on run
+[`34779620826`](https://github.com/pedronaugusto/zmeshopt/actions/runs/34779620826).
 
 Pending: measured against a Zig 0.17 dev build, both x86-64 miscompiles the
 shim works around are fixed, so those forwarders retire at the next toolchain
