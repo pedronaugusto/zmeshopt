@@ -5,30 +5,21 @@
 //! pointer, and a Zig allocator needs the allocation's length back — so the
 //! adapter prefixes every allocation with a 16-byte header holding the total
 //! size. 16 bytes keeps the pointer meshoptimizer sees aligned the way
-//! `operator new` would align it. (Upstream also documents a strict LIFO
-//! alloc/free order; the header makes the adapter correct without relying
-//! on it.)
+//! `operator new` would align it, and the header makes the adapter correct
+//! in any free order.
 
 const std = @import("std");
 const aegis = @import("aegis");
 const c = @import("c.zig").allocator;
 
-pub const AllocateFn = c.AllocateFn;
-pub const DeallocateFn = c.DeallocateFn;
-
-/// Raw hook: replaces operator new/delete for ALL of the library's temporary
-/// allocations, process-wide. NOT thread safe: must not run concurrently
-/// with any other meshoptimizer call.
-pub fn setAllocator(allocate: AllocateFn, deallocate: DeallocateFn) void {
-    c.meshopt_setAllocator(allocate, deallocate);
-}
-
-/// Installs `allocator` process-wide, permanently: it must outlive every later
-/// meshoptimizer call. Same thread-safety contract as `setAllocator`. A
-/// refusal panics, naming the size: upstream uses every allocation unchecked
+/// Routes upstream's temporary allocations through `gpa`, process-wide and
+/// permanently: upstream holds one hook for every thread and cannot report
+/// the previous one, so `gpa` must outlive every later meshoptimizer call,
+/// and this must not run while another call does. A refusal panics, naming
+/// the size: upstream uses every allocation unchecked
 /// (`meshoptimizer.h:1183-1185`), so it cannot take a failure.
-pub fn installZigAllocator(allocator: std.mem.Allocator) void {
-    installed = allocator;
+pub fn setAllocator(gpa: std.mem.Allocator) void {
+    installed = gpa;
     c.meshopt_setAllocator(zigAllocate, zigDeallocate);
 }
 
@@ -99,9 +90,9 @@ const counting = struct {
     const allocator = std.mem.Allocator{ .ptr = &state, .vtable = &vtable };
 };
 
-test installZigAllocator {
+test setAllocator {
     var failure: @import("failure.zig").Failure = .{};
-    installZigAllocator(counting.allocator);
+    setAllocator(counting.allocator);
 
     // generateVertexRemap allocates its hash table through the hook.
     const vertices = [_][3]f32{ .{ 0, 0, 0 }, .{ 1, 0, 0 }, .{ 0, 1, 0 } };

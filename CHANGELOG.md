@@ -32,6 +32,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html); before
   learns which call refused and why without an error set per module. The
   codecs' `EncodeError` and `DecodeError` are gone; `Malformed` is in
   `zmeshopt.Error`.
+- `installZigAllocator` is `setAllocator`, taking the `std.mem.Allocator`.
+  The raw hook and its `AllocateFn` and `DeallocateFn` are under
+  `zmeshopt.c` alone, so the flat namespace has one way to set the
+  allocator.
 - `decodeMeshlet` and `decodeMeshletRaw` take the vertex and triangle
   counts apart from their output slices, which must have the room the
   decoder writes; see Fixed.
@@ -47,6 +51,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html); before
 
 ### Changed
 
+- The documentation is README.md and docs/design.md, which holds what
+  BINDING.md, UPSTREAM.md and the pages under docs/ held, and is the vendor
+  record the vendor check reads. It documents the process-wide codec
+  versions upstream holds in globals.
 - Builds on Zig 0.17.0, which `build.zig.zon` now requires. The ABI
   cross-check reads the vendored header through the build's translate-c
   step, since 0.17 removes `@cImport`, and walks the 0.17 reflection lists.
@@ -74,7 +82,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html); before
   fuzz target's guard words. `decodeMeshletRaw` had the same shape, its
   outputs rounded up to groups of 4 (`meshletcodec.cpp:874-883`). Both
   now refuse outputs without that room.
-- An allocation the allocator installed by `installZigAllocator` refused
+- An allocation the Zig allocator set for upstream refused
   came back to upstream as null, which upstream stores and uses unchecked
   (`meshoptimizer.h:1183-1185`): undefined behaviour. It now stops the
   program with a panic naming the size refused and why upstream cannot take

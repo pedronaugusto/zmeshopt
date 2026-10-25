@@ -49,8 +49,9 @@ pub fn encodeVertexBufferLevel(comptime V: type, buffer: []u8, vertices: []const
     return buffer[0..n];
 }
 
-/// Sets the vertex encoder format version. NOT thread safe: must not run
-/// concurrently with vertex encoding.
+/// Sets the format version of every later vertex encode in the process that
+/// names none: upstream holds it in one global (`vertexcodec.cpp:125`), so
+/// this must not run while another thread encodes vertices.
 pub fn encodeVertexVersion(version: VertexCodecVersion) void {
     c.meshopt_encodeVertexVersion(@backingInt(version));
 }

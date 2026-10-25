@@ -238,7 +238,7 @@ pub fn dev(b: *std.Build, tools: type) void {
     verify.addDirectoryArg2(p.path("libs/meshoptimizer"), .{});
     verify.addDirectoryArg2(b.dependency("meshoptimizer", .{}).path("."), .{});
     verify.addFileArg(p.path("build.zig.zon"));
-    verify.addFileArg(p.path("UPSTREAM.md"));
+    verify.addFileArg(p.path("docs/design.md"));
     verify.addFileArg(p.path("build.zig"));
     verify.step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = vendor.root_module })).step);
     b.step("check-vendor", "Prove libs/meshoptimizer is upstream at the pinned commit").dependOn(&verify.step);

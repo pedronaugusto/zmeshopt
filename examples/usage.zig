@@ -22,9 +22,9 @@ pub fn main(init: std.process.Init) !void {
     // --- README:usage ---
 
     // Route meshoptimizer's temporary allocations through a Zig allocator
-    // (optional; the default is operator new/delete, and the install is
+    // (optional; the default is operator new/delete, and the setting is
     // process-wide and permanent).
-    zmeshopt.installZigAllocator(std.heap.page_allocator);
+    zmeshopt.setAllocator(std.heap.page_allocator);
 
     // A call that refuses leaves a frame here naming the call and why.
     var failure: zmeshopt.Failure = .{};

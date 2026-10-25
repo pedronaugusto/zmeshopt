@@ -74,8 +74,6 @@ pub const SimplifyMutableAttributes = simplify_area.MutableAttributes;
 pub const SimplifyColors = simplify_area.Colors;
 pub const OpacityStates = opacity_area.OpacityStates;
 pub const AlphaTexture = opacity_area.AlphaTexture;
-pub const AllocateFn = memory_area.AllocateFn;
-pub const DeallocateFn = memory_area.DeallocateFn;
 
 // Indexing and remapping.
 pub const generateVertexRemap = remap_area.generateVertexRemap;
@@ -197,7 +195,6 @@ pub const computePositionExponent = quantize_area.computePositionExponent;
 
 // Memory.
 pub const setAllocator = memory_area.setAllocator;
-pub const installZigAllocator = memory_area.installZigAllocator;
 
 /// The package version, from `build.zig.zon` — the version's one home —
 /// carried through the `zmeshopt_options` module by `build.zig`.

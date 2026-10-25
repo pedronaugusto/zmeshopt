@@ -34,8 +34,9 @@ pub fn encodeIndexBufferBound(index_count: usize, vertex_count: usize, failure: 
     return c.meshopt_encodeIndexBufferBound(index_count, vertex_count);
 }
 
-/// Sets the index encoder format version. NOT thread safe: must not run
-/// concurrently with index encoding.
+/// Sets the format version of every later index encode in the process:
+/// upstream holds it in one global (`indexcodec.cpp:16`), so this must not
+/// run while another thread encodes indices.
 pub fn encodeIndexVersion(version: IndexCodecVersion) void {
     c.meshopt_encodeIndexVersion(@backingInt(version));
 }
