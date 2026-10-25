@@ -7,7 +7,6 @@
 //! operation for operation; the tests pin the values that math produces.
 
 const std = @import("std");
-const assert = std.debug.assert;
 const c = @import("c.zig").quantize;
 
 /// Quantizes a float to IEEE-754 fp16: +-inf on overflow, NaN preserved,
@@ -19,9 +18,10 @@ pub fn quantizeHalf(v: f32) u16 {
 
 /// Quantizes a float to `bits` significant mantissa bits (1..23), staying in
 /// fp32 binary representation. Inf/NaN preserved, denormals flushed to zero,
-/// round to nearest.
-pub fn quantizeFloat(v: f32, bits: u5) f32 {
-    assert(bits >= 1 and bits <= 23);
+/// round to nearest. `bits` is comptime, so a count outside the range is a
+/// compile error.
+pub fn quantizeFloat(v: f32, comptime bits: u5) f32 {
+    comptime if (bits < 1 or bits > 23) @compileError("zmeshopt: quantizeFloat keeps 1 to 23 mantissa bits");
     return c.meshopt_quantizeFloat(v, bits);
 }
 
@@ -34,9 +34,10 @@ pub fn dequantizeHalf(h: u16) f32 {
 /// out-of-range input is clamped. Assumes reconstruction `q / (2^N - 1)`.
 /// Zig reimplementation of upstream's inline C++
 /// (`meshoptimizer.h:1123-1131`); the maximum reconstruction error is
-/// `1 / 2^(N+1)`.
-pub fn quantizeUnorm(v: f32, bits: u5) i32 {
-    assert(bits >= 1 and bits <= 23);
+/// `1 / 2^(N+1)`. `bits` is comptime, so a count outside the range is a
+/// compile error.
+pub fn quantizeUnorm(v: f32, comptime bits: u5) i32 {
+    comptime if (bits < 1 or bits > 23) @compileError("zmeshopt: quantizeUnorm quantizes to 1 to 23 bits");
     const scale: f32 = @floatFromInt((@as(i32, 1) << bits) - 1);
     var x = v;
     x = if (x >= 0) x else 0;
@@ -44,14 +45,13 @@ pub fn quantizeUnorm(v: f32, bits: u5) i32 {
     return @intFromFloat(x * scale + 0.5);
 }
 
-/// Quantizes a float in [-1..1] into an N-bit snorm (`bits` in 2..23);
-/// out-of-range input is clamped. Assumes reconstruction
-/// `q / (2^(N-1) - 1)` (fixed-function normalized conversion, except early
-/// OpenGL). Zig reimplementation of upstream's inline C++
-/// (`meshoptimizer.h:1133-1143`); the maximum reconstruction error is
-/// `1 / 2^N`.
-pub fn quantizeSnorm(v: f32, bits: u5) i32 {
-    assert(bits >= 2 and bits <= 23);
+/// Quantizes a float in [-1..1] into an N-bit snorm, `bits` in 2..23 at
+/// compile time; out-of-range input is clamped. Assumes reconstruction
+/// `q / (2^(N-1) - 1)`, fixed-function normalized conversion except early
+/// OpenGL. Upstream's inline C++ (`meshoptimizer.h:1133-1143`) reimplemented;
+/// the maximum reconstruction error is `1 / 2^N`.
+pub fn quantizeSnorm(v: f32, comptime bits: u5) i32 {
+    comptime if (bits < 2 or bits > 23) @compileError("zmeshopt: quantizeSnorm quantizes to 2 to 23 bits");
     const scale: f32 = @floatFromInt((@as(i32, 1) << (bits - 1)) - 1);
     const round: f32 = if (v >= 0) 0.5 else -0.5;
     var x = v;

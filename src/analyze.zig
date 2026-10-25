@@ -5,7 +5,7 @@
 //! signals, not GPU predictions.
 
 const std = @import("std");
-const assert = std.debug.assert;
+const check = @import("check.zig");
 const c = @import("c.zig").analyze;
 const contract = @import("contract.zig");
 const shim = @import("shim.zig");
@@ -17,8 +17,8 @@ pub const CoverageStatistics = c.CoverageStatistics;
 
 /// Vertex transform cache statistics under a simplified FIFO model.
 /// `warp_size` and `primgroup_size` may be 0 to skip those models.
-pub fn analyzeVertexCache(indices: []const u32, vertex_count: usize, cache_size: u32, warp_size: u32, primgroup_size: u32) VertexCacheStatistics {
-    assert(indices.len % 3 == 0);
+pub fn analyzeVertexCache(indices: []const u32, vertex_count: usize, cache_size: u32, warp_size: u32, primgroup_size: u32) check.Error!VertexCacheStatistics {
+    try check.triangles(indices.len);
     return c.meshopt_analyzeVertexCache(indices.ptr, indices.len, vertex_count, cache_size, warp_size, primgroup_size);
 }
 
@@ -31,17 +31,17 @@ pub fn analyzeVertexFetch(comptime V: type, indices: []const u32, vertex_count: 
 
 /// Overdraw statistics from a software rasterizer. `V`'s first 12 bytes are
 /// the position float3.
-pub fn analyzeOverdraw(comptime V: type, indices: []const u32, vertices: []const V) OverdrawStatistics {
+pub fn analyzeOverdraw(comptime V: type, indices: []const u32, vertices: []const V) check.Error!OverdrawStatistics {
     contract.checkVertex(V, 3);
-    assert(indices.len % 3 == 0);
+    try check.triangles(indices.len);
     return c.meshopt_analyzeOverdraw(indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V));
 }
 
 /// Coverage statistics (per-axis covered viewport ratio) from a software
 /// rasterizer.
-pub fn analyzeCoverage(comptime V: type, indices: []const u32, vertices: []const V) CoverageStatistics {
+pub fn analyzeCoverage(comptime V: type, indices: []const u32, vertices: []const V) check.Error!CoverageStatistics {
     contract.checkVertex(V, 3);
-    assert(indices.len % 3 == 0);
+    try check.triangles(indices.len);
     // Out-parameter crossing via src/abi_shim.c: the all-float by-value
     // return is a measured self-hosted-backend miscompile (src/shim.zig).
     var stats: CoverageStatistics = undefined;
@@ -51,7 +51,7 @@ pub fn analyzeCoverage(comptime V: type, indices: []const u32, vertices: []const
 
 test analyzeVertexCache {
     const indices = [_]u32{ 0, 1, 2, 2, 1, 3 };
-    const stats = analyzeVertexCache(&indices, 4, 16, 0, 0);
+    const stats = try analyzeVertexCache(&indices, 4, 16, 0, 0);
     // 4 unique vertices in cache 16: each transforms exactly once.
     try std.testing.expectEqual(@as(u32, 4), stats.vertices_transformed);
     try std.testing.expectApproxEqRel(@as(f32, 2.0), stats.acmr, 1e-6);
@@ -69,7 +69,7 @@ test analyzeOverdraw {
     // Two identical overlapping triangles: every covered pixel shades twice.
     const vertices = [_][3]f32{ .{ 0, 0, 0 }, .{ 1, 0, 0 }, .{ 0, 1, 0 } };
     const indices = [_]u32{ 0, 1, 2, 0, 1, 2 };
-    const stats = analyzeOverdraw([3]f32, &indices, &vertices);
+    const stats = try analyzeOverdraw([3]f32, &indices, &vertices);
     try std.testing.expectApproxEqRel(@as(f32, 2.0), stats.overdraw, 1e-6);
 }
 
@@ -77,6 +77,6 @@ test analyzeCoverage {
     // A quad spanning the whole XY bounding square covers that axis fully.
     const vertices = [_][3]f32{ .{ 0, 0, 0 }, .{ 1, 0, 0 }, .{ 0, 1, 0 }, .{ 1, 1, 0 } };
     const indices = [_]u32{ 0, 1, 2, 2, 1, 3 };
-    const stats = analyzeCoverage([3]f32, &indices, &vertices);
+    const stats = try analyzeCoverage([3]f32, &indices, &vertices);
     try std.testing.expectApproxEqAbs(@as(f32, 1.0), stats.coverage[2], 0.05);
 }

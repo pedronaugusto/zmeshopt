@@ -3,7 +3,7 @@
 //! Slice-based wrapper over `src/c/tangents.zig`. EXPERIMENTAL upstream.
 
 const std = @import("std");
-const assert = std.debug.assert;
+const check = @import("check.zig");
 const c = @import("c.zig").tangents;
 const contract = @import("contract.zig");
 
@@ -15,16 +15,17 @@ pub const TangentOptions = c.TangentOptions;
 /// as unindexed (same tangents, ~30% slower). `P`'s first 12 bytes are the
 /// position float3, `N`'s the unit normal float3, `U`'s first 8 the UV
 /// float2.
-pub fn generateTangents(comptime P: type, comptime N: type, comptime U: type, result: [][4]f32, indices: ?[]const u32, positions: []const P, normals: []const N, uvs: []const U, options: TangentOptions) void {
+pub fn generateTangents(comptime P: type, comptime N: type, comptime U: type, result: [][4]f32, indices: ?[]const u32, positions: []const P, normals: []const N, uvs: []const U, options: TangentOptions) check.Error!void {
     contract.checkVertex(P, 3);
     contract.checkVertex(N, 3);
     contract.checkVertex(U, 2);
-    assert(normals.len == positions.len and uvs.len == positions.len);
+    try check.same(normals.len, positions.len);
+    try check.same(uvs.len, positions.len);
     const index_count = if (indices) |ix| ix.len else positions.len;
     // tangentspace.cpp:383 asserts the count either way, so unindexed input
     // has to be whole triangles too.
-    assert(index_count % 3 == 0);
-    assert(result.len >= index_count);
+    try check.triangles(index_count);
+    try check.room(result.len, index_count);
     c.meshopt_generateTangents(
         @ptrCast(result.ptr), // safe: [4]f32 elements written as their flat floats
         if (indices) |ix| ix.ptr else null,
@@ -47,7 +48,7 @@ test generateTangents {
     const uvs = [_][2]f32{ .{ 0, 0 }, .{ 1, 0 }, .{ 0, 1 } };
     const indices = [_]u32{ 0, 1, 2 };
     var tangents: [3][4]f32 = undefined;
-    generateTangents([3]f32, [3]f32, [2]f32, &tangents, &indices, &positions, &normals, &uvs, .{});
+    try generateTangents([3]f32, [3]f32, [2]f32, &tangents, &indices, &positions, &normals, &uvs, .{});
     for (tangents) |t| {
         try std.testing.expectApproxEqAbs(@as(f32, 1), t[0], 1e-4);
         try std.testing.expectApproxEqAbs(@as(f32, 0), t[1], 1e-4);
@@ -57,6 +58,6 @@ test generateTangents {
 
     // The unindexed path produces the same tangents.
     var unindexed: [3][4]f32 = undefined;
-    generateTangents([3]f32, [3]f32, [2]f32, &unindexed, null, &positions, &normals, &uvs, .{});
+    try generateTangents([3]f32, [3]f32, [2]f32, &unindexed, null, &positions, &normals, &uvs, .{});
     try std.testing.expectEqualSlices(u8, std.mem.sliceAsBytes(&tangents), std.mem.sliceAsBytes(&unindexed));
 }

@@ -5,7 +5,7 @@
 //! decode, so keep them alongside the encoded bytes.
 
 const std = @import("std");
-const assert = std.debug.assert;
+const check = @import("check.zig");
 const c = @import("c.zig").meshlet_codec;
 
 pub const EncodeError = error{BufferTooSmall};
@@ -15,9 +15,10 @@ pub const DecodeError = error{Malformed};
 /// written prefix. Size `buffer` with `encodeMeshletBound`; `vertices` may be
 /// empty to encode triangle data only; both counts must be <= 256. For best
 /// results run `optimizeMeshletLevel` (level 3) on the meshlet first.
-pub fn encodeMeshlet(buffer: []u8, vertices: []const u32, triangles: []const u8) EncodeError![]u8 {
-    assert(vertices.len <= 256);
-    assert(triangles.len % 3 == 0 and triangles.len / 3 <= 256);
+pub fn encodeMeshlet(buffer: []u8, vertices: []const u32, triangles: []const u8) (EncodeError || check.Error)![]u8 {
+    try check.range(vertices.len <= 256);
+    try check.triangles(triangles.len);
+    try check.range(triangles.len / 3 <= 256);
     const n = c.meshopt_encodeMeshlet(buffer.ptr, buffer.len, if (vertices.len == 0) null else vertices.ptr, vertices.len, triangles.ptr, triangles.len / 3);
     if (n == 0) return error.BufferTooSmall;
     return buffer[0..n];

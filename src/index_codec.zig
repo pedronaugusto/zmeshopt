@@ -6,7 +6,7 @@
 //! documents the distinct codes as diagnostic only.
 
 const std = @import("std");
-const assert = std.debug.assert;
+const check = @import("check.zig");
 const c = @import("c.zig").index_codec;
 
 /// Index codec format version (`meshopt_encodeIndexVersion` values).
@@ -22,16 +22,16 @@ pub const DecodeError = error{Malformed};
 
 /// Encodes a triangle-list index buffer (<1.5 bytes/triangle typical);
 /// returns the written prefix. Size `buffer` with `encodeIndexBufferBound`.
-pub fn encodeIndexBuffer(buffer: []u8, indices: []const u32) EncodeError![]u8 {
-    assert(indices.len % 3 == 0);
+pub fn encodeIndexBuffer(buffer: []u8, indices: []const u32) (EncodeError || check.Error)![]u8 {
+    try check.triangles(indices.len);
     const n = c.meshopt_encodeIndexBuffer(buffer.ptr, buffer.len, indices.ptr, indices.len);
     if (n == 0) return error.BufferTooSmall;
     return buffer[0..n];
 }
 
 /// Worst-case encoded size for `encodeIndexBuffer`.
-pub fn encodeIndexBufferBound(index_count: usize, vertex_count: usize) usize {
-    assert(index_count % 3 == 0);
+pub fn encodeIndexBufferBound(index_count: usize, vertex_count: usize) check.Error!usize {
+    try check.triangles(index_count);
     return c.meshopt_encodeIndexBufferBound(index_count, vertex_count);
 }
 
@@ -44,9 +44,9 @@ pub fn encodeIndexVersion(version: IndexCodecVersion) void {
 /// Decodes an encoded index buffer into `u16` or `u32` indices. Safe on
 /// untrusted input, but decoded indices may still be garbage — validate
 /// against the vertex count.
-pub fn decodeIndexBuffer(comptime I: type, destination: []I, buffer: []const u8) DecodeError!void {
+pub fn decodeIndexBuffer(comptime I: type, destination: []I, buffer: []const u8) (DecodeError || check.Error)!void {
     comptime if (I != u16 and I != u32) @compileError("zmeshopt: the index codec decodes to u16 or u32, not " ++ @typeName(I));
-    assert(destination.len % 3 == 0);
+    try check.triangles(destination.len);
     if (c.meshopt_decodeIndexBuffer(destination.ptr, destination.len, @sizeOf(I), buffer.ptr, buffer.len) != 0)
         return error.Malformed;
 }
@@ -95,7 +95,7 @@ test encodeIndexBuffer {
     const indices = [_]u32{ 0, 1, 2, 2, 1, 3 };
     var buffer: [64]u8 = undefined;
     const encoded = try encodeIndexBuffer(&buffer, &indices);
-    try std.testing.expect(encoded.len <= encodeIndexBufferBound(indices.len, 4));
+    try std.testing.expect(encoded.len <= try encodeIndexBufferBound(indices.len, 4));
 
     // The codec preserves each triangle up to corner rotation
     // (indexcodec.cpp:245), so compare rotation-normalized.

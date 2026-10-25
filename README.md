@@ -28,31 +28,31 @@ const soup = try generateGridSoup(arena, 32);
 
 // 1. Index: collapse duplicate vertices, then remap both buffers.
 const remap = try arena.alloc(u32, soup.len);
-const unique = zmeshopt.generateVertexRemap(Vertex, remap, null, soup);
+const unique = try zmeshopt.generateVertexRemap(Vertex, remap, null, soup);
 const vertices = try arena.alloc(Vertex, unique);
 const indices = try arena.alloc(u32, soup.len);
-zmeshopt.remapVertexBuffer(Vertex, vertices, soup, remap);
-zmeshopt.remapIndexBuffer(indices, null, remap);
+try zmeshopt.remapVertexBuffer(Vertex, vertices, soup, remap);
+try zmeshopt.remapIndexBuffer(indices, null, remap);
 
 // 2. Optimize: vertex cache order, then overdraw, then fetch locality.
-zmeshopt.optimizeVertexCache(indices, indices, vertices.len);
-zmeshopt.optimizeOverdraw(Vertex, indices, indices, vertices, 1.05);
-_ = zmeshopt.optimizeVertexFetch(Vertex, vertices, indices, vertices);
+try zmeshopt.optimizeVertexCache(indices, indices, vertices.len);
+try zmeshopt.optimizeOverdraw(Vertex, indices, indices, vertices, 1.05);
+_ = try zmeshopt.optimizeVertexFetch(Vertex, vertices, indices, vertices);
 
-const cache = zmeshopt.analyzeVertexCache(indices, vertices.len, 16, 0, 0);
+const cache = try zmeshopt.analyzeVertexCache(indices, vertices.len, 16, 0, 0);
 
 // 3. Simplify: a quarter-size LOD within 1% of the mesh extents.
 const lod_buffer = try arena.alloc(u32, indices.len);
-const lod = zmeshopt.simplify(Vertex, lod_buffer, indices, vertices, indices.len / 4, 0.01, .{});
+const lod = try zmeshopt.simplify(Vertex, lod_buffer, indices, vertices, indices.len / 4, 0.01, .{});
 
 // 4. Meshlets for GPU-driven rendering.
 const max_vertices = 64;
 const max_triangles = 96;
-const meshlet_buffer = try arena.alloc(zmeshopt.Meshlet, zmeshopt.buildMeshletsBound(indices.len, max_vertices, max_triangles));
+const meshlet_buffer = try arena.alloc(zmeshopt.Meshlet, try zmeshopt.buildMeshletsBound(indices.len, max_vertices, max_triangles));
 const meshlet_vertices = try arena.alloc(u32, indices.len);
 const meshlet_triangles = try arena.alloc(u8, indices.len);
-const meshlets = zmeshopt.buildMeshlets(Vertex, meshlet_buffer, meshlet_vertices, meshlet_triangles, indices, vertices, max_vertices, max_triangles, 0.25);
-const bounds = zmeshopt.computeMeshletBounds(
+const meshlets = try zmeshopt.buildMeshlets(Vertex, meshlet_buffer, meshlet_vertices, meshlet_triangles, indices, vertices, max_vertices, max_triangles, 0.25);
+const bounds = try zmeshopt.computeMeshletBounds(
     Vertex,
     zmeshopt.meshletVertexSlice(meshlets[0], meshlet_vertices),
     zmeshopt.meshletTriangleSlice(meshlets[0], meshlet_triangles),
@@ -62,7 +62,7 @@ const bounds = zmeshopt.computeMeshletBounds(
 // 5. Compress both buffers for storage or transmission.
 const encoded_vertices_buffer = try arena.alloc(u8, zmeshopt.encodeVertexBufferBound(Vertex, vertices.len));
 const encoded_vertices = try zmeshopt.encodeVertexBuffer(Vertex, encoded_vertices_buffer, vertices);
-const encoded_indices_buffer = try arena.alloc(u8, zmeshopt.encodeIndexBufferBound(indices.len, vertices.len));
+const encoded_indices_buffer = try arena.alloc(u8, try zmeshopt.encodeIndexBufferBound(indices.len, vertices.len));
 const encoded_indices = try zmeshopt.encodeIndexBuffer(encoded_indices_buffer, indices);
 ```
 <!-- END GENERATED -->

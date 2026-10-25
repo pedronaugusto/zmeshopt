@@ -7,6 +7,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html); before
 
 ## [Unreleased]
 
+### Breaking
+
+- Every precondition the idiomatic layer held with `std.debug.assert` is
+  checked in every build and refused with a named error from
+  `zmeshopt.Error`: `NotTriangles` for an index buffer that is not
+  whole triangles, `BufferTooSmall` for a destination shorter than its
+  bound, `LengthMismatch` for slices whose lengths the contract ties
+  together, `OutOfRange` for a parameter outside upstream's range. An
+  assert is undefined behaviour in ReleaseFast and ReleaseSmall, where
+  upstream's own asserts are compiled out too, so a short buffer was a heap
+  write there. The functions that check return an error union.
+- `quantizeFloat`, `quantizeUnorm` and `quantizeSnorm` take `bits` at
+  compile time, and a count outside the range is a compile error.
+
 ### Changed
 
 - Builds on Zig 0.17.0, which `build.zig.zon` now requires. The ABI

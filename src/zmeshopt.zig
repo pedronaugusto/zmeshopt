@@ -22,6 +22,9 @@ pub const options = @import("zmeshopt_options");
 
 pub const c = @import("c.zig");
 
+/// What the idiomatic layer refuses before it calls upstream.
+pub const Error = @import("check.zig").Error;
+
 const remap_area = @import("remap.zig");
 const cache_area = @import("cache.zig");
 const index_codec_area = @import("index_codec.zig");
@@ -209,6 +212,7 @@ test version {
 test {
     _ = @import("testing/abi.zig");
     _ = @import("testing/canary.zig");
+    _ = @import("check.zig");
     _ = @import("contract.zig");
     _ = remap_area;
     _ = cache_area;

@@ -3,31 +3,31 @@
 //! Slice-based wrappers over `src/c/cache.zig`.
 
 const std = @import("std");
-const assert = std.debug.assert;
+const check = @import("check.zig");
 const c = @import("c.zig").cache;
 const contract = @import("contract.zig");
 
 /// Reorders indices to reduce GPU vertex shader invocations. Call per draw
 /// range if the index buffer holds several. `destination` may alias `indices`.
-pub fn optimizeVertexCache(destination: []u32, indices: []const u32, vertex_count: usize) void {
-    assert(indices.len % 3 == 0);
-    assert(destination.len >= indices.len);
+pub fn optimizeVertexCache(destination: []u32, indices: []const u32, vertex_count: usize) check.Error!void {
+    try check.triangles(indices.len);
+    try check.room(destination.len, indices.len);
     c.meshopt_optimizeVertexCache(destination.ptr, indices.ptr, indices.len, vertex_count);
 }
 
 /// Vertex cache optimizer tuned for strip-like orders: worse cache results
 /// than `optimizeVertexCache`, better strip length and compression.
-pub fn optimizeVertexCacheStrip(destination: []u32, indices: []const u32, vertex_count: usize) void {
-    assert(indices.len % 3 == 0);
-    assert(destination.len >= indices.len);
+pub fn optimizeVertexCacheStrip(destination: []u32, indices: []const u32, vertex_count: usize) check.Error!void {
+    try check.triangles(indices.len);
+    try check.room(destination.len, indices.len);
     c.meshopt_optimizeVertexCacheStrip(destination.ptr, indices.ptr, indices.len, vertex_count);
 }
 
 /// Vertex cache optimizer for FIFO caches: ~3x faster, inferior results.
 /// `cache_size` should be below the actual GPU cache size.
-pub fn optimizeVertexCacheFifo(destination: []u32, indices: []const u32, vertex_count: usize, cache_size: u32) void {
-    assert(indices.len % 3 == 0);
-    assert(destination.len >= indices.len);
+pub fn optimizeVertexCacheFifo(destination: []u32, indices: []const u32, vertex_count: usize, cache_size: u32) check.Error!void {
+    try check.triangles(indices.len);
+    try check.room(destination.len, indices.len);
     c.meshopt_optimizeVertexCacheFifo(destination.ptr, indices.ptr, indices.len, vertex_count, cache_size);
 }
 
@@ -35,10 +35,10 @@ pub fn optimizeVertexCacheFifo(destination: []u32, indices: []const u32, vertex_
 /// of `optimizeVertexCache`. `threshold` is how much cache efficiency may
 /// degrade (1.05 = up to 5%). `V`'s first 12 bytes are the position float3.
 /// `destination` may alias `indices` (overdrawoptimizer.cpp:284).
-pub fn optimizeOverdraw(comptime V: type, destination: []u32, indices: []const u32, vertices: []const V, threshold: f32) void {
+pub fn optimizeOverdraw(comptime V: type, destination: []u32, indices: []const u32, vertices: []const V, threshold: f32) check.Error!void {
     contract.checkVertex(V, 3);
-    assert(indices.len % 3 == 0);
-    assert(destination.len >= indices.len);
+    try check.triangles(indices.len);
+    try check.room(destination.len, indices.len);
     c.meshopt_optimizeOverdraw(destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), threshold);
 }
 
@@ -46,9 +46,9 @@ pub fn optimizeOverdraw(comptime V: type, destination: []u32, indices: []const u
 /// fetches; returns the unique vertex count. Single-stream only — for
 /// multiple streams use `optimizeVertexFetchRemap` plus the remap functions.
 /// `destination` may alias `vertices` (vfetchoptimizer.cpp:35).
-pub fn optimizeVertexFetch(comptime V: type, destination: []V, indices: []u32, vertices: []const V) usize {
+pub fn optimizeVertexFetch(comptime V: type, destination: []V, indices: []u32, vertices: []const V) check.Error!usize {
     contract.checkVertexSize(V);
-    assert(destination.len >= vertices.len);
+    try check.room(destination.len, vertices.len);
     return c.meshopt_optimizeVertexFetch(destination.ptr, indices.ptr, indices.len, vertices.ptr, vertices.len, @sizeOf(V));
 }
 
@@ -62,7 +62,7 @@ test optimizeVertexCache {
     // A 2x2 quad grid; the optimizer must emit a permutation of the input.
     const indices = [_]u32{ 0, 1, 3, 0, 3, 2, 2, 3, 5, 2, 5, 4 };
     var optimized: [12]u32 = undefined;
-    optimizeVertexCache(&optimized, &indices, 6);
+    try optimizeVertexCache(&optimized, &indices, 6);
     var histogram = @as([6]u8, @splat(0));
     for (optimized) |i| histogram[i] += 1;
     for (histogram, 0..) |n, v| {
@@ -77,7 +77,7 @@ test optimizeVertexFetch {
     const vertices = [_][3]f32{ .{ 0, 0, 0 }, .{ 1, 0, 0 }, .{ 2, 0, 0 } };
     var indices = [_]u32{ 2, 0, 1 };
     var reordered: [3][3]f32 = undefined;
-    const unique = optimizeVertexFetch([3]f32, &reordered, &indices, &vertices);
+    const unique = try optimizeVertexFetch([3]f32, &reordered, &indices, &vertices);
     try std.testing.expectEqual(@as(usize, 3), unique);
     try std.testing.expectEqual(@as(f32, 2), reordered[0][0]);
     try std.testing.expectEqual(@as(u32, 0), indices[0]);
@@ -89,4 +89,16 @@ test optimizeVertexFetchRemap {
     const unique = optimizeVertexFetchRemap(&remap, &indices);
     try std.testing.expectEqual(@as(usize, 3), unique);
     try std.testing.expectEqual(@as(u32, 0), remap[2]);
+}
+
+test "a destination shorter than the index buffer is refused before upstream writes" {
+    const indices = [_]u32{ 0, 1, 2, 2, 1, 3 };
+    var short: [5]u32 = undefined;
+    try std.testing.expectError(error.BufferTooSmall, optimizeVertexCache(&short, &indices, 4));
+}
+
+test "an index buffer that is not whole triangles is refused" {
+    const indices = [_]u32{ 0, 1, 2, 2 };
+    var optimized: [4]u32 = undefined;
+    try std.testing.expectError(error.NotTriangles, optimizeVertexCache(&optimized, &indices, 3));
 }
