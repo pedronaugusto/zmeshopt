@@ -1,10 +1,42 @@
 # Changelog
 
-Each entry says what the old shape could not express, so a port has the reason
-and not only the diff. Versions follow [semantic versioning](https://semver.org);
-before 1.0 the minor is the breaking one.
+All notable changes to this project are documented here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
+adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html); before
+1.0 the minor is the breaking one.
 
-## 0.2.0
+## [Unreleased]
+
+### Changed
+
+- Builds on Zig 0.17.0, which `build.zig.zon` now requires. The ABI
+  cross-check reads the vendored header through the build's translate-c
+  step, since 0.17 removes `@cImport`, and walks the 0.17 reflection lists.
+- The development gate is preflight's, run with `bay test`: formatting,
+  structure layers, lint, documentation drift, the tests under the C
+  sanitizer, without it and with the scalar kernels, the shared library, the
+  C smoke test, the examples and a consumer build. Every check that was a
+  shell script is a Zig program or a test.
+- The ABI guard (`src/testing/abi.zig`) returns what drifted instead of
+  stopping the build at the first comparison, so its drift proofs are
+  ordinary comptime tests, one per kind of drift, that run on every target
+  the gate compiles for instead of rewriting the tree and rebuilding. The
+  canaries move to `src/testing/canary.zig`, with a test that a mirror
+  echoing a wrong value is caught.
+- The vendored tree is compared byte for byte against upstream fetched by
+  URL and hash at the commit the vendor record names, and `build.zig`'s
+  translation units are held to it in both directions.
+
+### Removed
+
+- `ci/*.sh`, `tools/` and `tests/consumer`. The consumer build is
+  preflight's consumer check over `ci/consumer.zig`; the C consumer is the C
+  smoke test, which links the same artifact.
+- `docs/` from the package's paths: no consumer's build reads it.
+
+## [0.2.0] - 2026-09-04
+
+### Fixed
 
 Precondition fixes only. No signature, ABI or behaviour change for a caller
 that was already inside the C contract; a caller that was outside it now gets
@@ -49,7 +81,9 @@ answer, or a heap write.
   generators, tangent generator, analyzers, opacity measurement, cluster
   bounds and the index codec.
 
-## 0.1.1
+## [0.1.1] - 2026-09-03
+
+### Fixed
 
 Documentation and gates only. The library, its ABI and its behaviour are
 unchanged from 0.1.0, so an upgrade is a re-pin and nothing else.
@@ -73,7 +107,9 @@ unchanged from 0.1.0, so an upgrade is a re-pin and nothing else.
   covers stated instead of implied, and `.gitignore` covering the `.bak`
   the drift script leaves when interrupted.
 
-## 0.1.0
+## [0.1.0] - 2026-09-02
+
+### Added
 
 First release. Complete bindings for meshoptimizer v1.2 — every function the
 header declares, the experimental surface included — with:
@@ -100,3 +136,8 @@ header declares, the experimental surface included — with:
 - A consumer package (`tests/consumer/`) driving the module and the C artifact
   the way a downstream `b.dependency` does, examples that are built AND run,
   generated README numbers, and the family CI matrix.
+
+[Unreleased]: https://github.com/pedronaugusto/zmeshopt/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/pedronaugusto/zmeshopt/compare/v0.1.1...v0.2.0
+[0.1.1]: https://github.com/pedronaugusto/zmeshopt/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/pedronaugusto/zmeshopt/releases/tag/v0.1.0

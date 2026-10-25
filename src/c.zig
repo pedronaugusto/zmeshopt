@@ -5,7 +5,7 @@
 //! rule is mechanical, so a new declaration has exactly one home and nobody
 //! has to argue about it.
 //!
-//! `modules` is the point of keeping this file at all: `abi_check.zig`
+//! `modules` is the point of keeping this file at all: `src/testing/abi.zig`
 //! discovers what to check by walking it, so a module added here is swept
 //! automatically, and a module not added here is a module the guard does not
 //! cover — which its reverse sweep turns into a compile error, one per header
@@ -17,9 +17,8 @@
 // prototype is exactly the problem: their CALLER shape is one Zig was
 // measured miscompiling, so a direct call through this namespace can return
 // wrong results on the affected targets where the idiomatic layer is correct
-// everywhere. `tools/zig_surface_exceptions.txt` is the list, kept honest by
-// `ci/check-coverage.sh`; BINDING.md has the measurement and the gate that
-// retires the workaround.
+// everywhere. `ci/coverage.zig` names each one as rerouted, and the canaries
+// in `src/testing/canary.zig` are the gate that retires the workaround.
 //=============================================================================
 
 pub const remap = @import("c/remap.zig");
@@ -40,7 +39,7 @@ pub const tangents = @import("c/tangents.zig");
 pub const quantize = @import("c/quantize.zig");
 pub const allocator = @import("c/allocator.zig");
 
-/// Every module above, in header order. Walked by `abi_check.zig`.
+/// Every module above, in header order. Walked by `src/testing/abi.zig`.
 pub const modules = .{
     remap,
     cache,

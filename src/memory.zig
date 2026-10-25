@@ -48,14 +48,14 @@ fn zigAllocate(size: usize) callconv(.c) ?*anyopaque {
     const allocator = installed orelse return null;
     const total = std.math.add(usize, size, header_size) catch return null;
     const memory = allocator.alignedAlloc(u8, alignment, total) catch return null;
-    @as(*usize, @ptrCast(memory.ptr)).* = total;
+    @as(*usize, @ptrCast(memory.ptr)).* = total; // safe: the block is 16-aligned and header_size >= @sizeOf(usize), checked above
     return memory.ptr + header_size;
 }
 
 fn zigDeallocate(ptr: ?*anyopaque) callconv(.c) void {
     const p = ptr orelse return;
-    const base: [*]align(alignment.toByteUnits()) u8 = @alignCast(@as([*]u8, @ptrCast(p)) - header_size);
-    const total = @as(*const usize, @ptrCast(base)).*;
+    const base: [*]align(alignment.toByteUnits()) u8 = @alignCast(@as([*]u8, @ptrCast(p)) - header_size); // safe: upstream hands back the pointer zigAllocate returned, header_size past a 16-aligned block
+    const total = @as(*const usize, @ptrCast(base)).*; // safe: the header zigAllocate wrote at the block start
     const allocator = installed orelse unreachable;
     allocator.free(base[0..total]);
 }

@@ -15,7 +15,7 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
-const c = @import("c.zig");
+const c = @import("../c.zig");
 
 extern fn zmeshopt_canary_slot(i: usize) f64;
 
@@ -82,17 +82,22 @@ fn p(comptime T: type, comptime addr: usize) T {
     return @ptrFromInt(addr);
 }
 
-fn expectSlots(expected: []const f64) !void {
+/// The first slot the C mirror recorded that is not `expected`'s, or null.
+fn firstMismatch(expected: []const f64) ?usize {
     for (expected, 0..) |want, i| {
-        try std.testing.expectEqual(want, zmeshopt_canary_slot(i));
+        if (zmeshopt_canary_slot(i) != want) return i;
     }
+    return null;
+}
+
+fn expectSlots(expected: []const f64) !void {
+    const i = firstMismatch(expected) orelse return;
+    std.debug.print("canary slot {d}: expected {d}, the C mirror recorded {d}\n", .{ i, expected[i], zmeshopt_canary_slot(i) });
+    return error.CanarySlotMismatch;
 }
 
 fn slotsMatch(expected: []const f64) bool {
-    for (expected, 0..) |want, i| {
-        if (zmeshopt_canary_slot(i) != want) return false;
-    }
-    return true;
+    return firstMismatch(expected) == null;
 }
 
 // The raw shapes as (call, expected-slots) pairs, so the toolchain watch can
@@ -180,6 +185,13 @@ test "toolchain watch: raw all-float struct return" {
     }
 }
 
+test "the canary refuses an echo that differs from what was passed" {
+    _ = zmeshopt_canary_shim_simplify(0.625, p([*]u32, 0x1000), p([*]const u32, 0x2000), 3, p([*]const f32, 0x3000), 5, 12, 7, .{ .lock_border = true, .prune = true }, p(?*f32, 0x4000));
+    // What a mirror echoing target_error + 1 would leave in slot 0.
+    try std.testing.expectEqual(@as(?usize, 0), firstMismatch(&.{ 1.625, 0x1000, 0x2000, 3, 0x3000, 5, 12, 7, 9, 0x4000 }));
+    try std.testing.expectEqual(@as(?usize, 7), firstMismatch(&.{ 0.625, 0x1000, 0x2000, 3, 0x3000, 5, 12, 8, 9, 0x4000 }));
+}
+
 test "shim canary: zmeshopt_shim_simplify's shape (f32 first)" {
     _ = zmeshopt_canary_shim_simplify(0.625, p([*]u32, 0x1000), p([*]const u32, 0x2000), 3, p([*]const f32, 0x3000), 5, 12, 7, .{ .lock_border = true, .prune = true }, p(?*f32, 0x4000));
     try expectSlots(&.{ 0.625, 0x1000, 0x2000, 3, 0x3000, 5, 12, 7, 9, 0x4000 });
@@ -223,7 +235,7 @@ test "shim canary: zmeshopt_shim_opacityMapMeasure's shape (f32 first)" {
 test "shim canary: zmeshopt_shim_analyzeCoverage's shape (out-param)" {
     var stats: c.analyze.CoverageStatistics = undefined;
     zmeshopt_canary_shim_coverage(&stats, p([*]const u32, 0x2000), 3, p([*]const f32, 0x3000), 5, 12);
-    try expectSlots(&.{ @floatFromInt(@intFromPtr(&stats)), 0x2000, 3, 0x3000, 5, 12 });
+    try expectSlots(&.{ @floatFromInt(@intFromPtr(&stats)), 0x2000, 3, 0x3000, 5, 12 }); // safe: the C mirror records the address as a double, exact below 2^53
     try std.testing.expectEqual(@as(f32, 1.25), stats.coverage[0]);
     try std.testing.expectEqual(@as(f32, 2.5), stats.coverage[1]);
     try std.testing.expectEqual(@as(f32, 3.75), stats.coverage[2]);

@@ -26,7 +26,7 @@ pub fn generateTangents(comptime P: type, comptime N: type, comptime U: type, re
     assert(index_count % 3 == 0);
     assert(result.len >= index_count);
     c.meshopt_generateTangents(
-        @ptrCast(result.ptr),
+        @ptrCast(result.ptr), // safe: [4]f32 elements written as their flat floats
         if (indices) |ix| ix.ptr else null,
         index_count,
         contract.floatPtr(P, positions),

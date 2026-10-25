@@ -6,19 +6,11 @@
     .paths = .{
         "build.zig",
         "build.zig.zon",
-        "ci",
-        "docs",
-        "examples",
-        "tools",
-        ".github",
-        "libs",
         "src",
-        "tests",
-        "BINDING.md",
-        "CHANGELOG.md",
+        "libs",
         "LICENSE",
         "README.md",
-        "UPSTREAM.md",
+        "CHANGELOG.md",
     },
     .dev_dependencies = .{
         .preflight = .{
@@ -28,6 +20,10 @@
         .shakedown = .{
             .url = "git+https://github.com/pedronaugusto/shakedown?ref=v0.4.18#69b2ef1175c5e58c0d28d62616635f25691dc3cf",
             .hash = "shakedown-0.4.18-BR8U494oFwC7JpkItoAJO4VXbxc_1CikI-lHrB2PzpUq",
+        },
+        .meshoptimizer = .{
+            .url = "git+https://github.com/zeux/meshoptimizer?ref=v1.2#9d9890c73011d75920af614485296d1e03e95448",
+            .hash = "N-V-__8AADxPIwDjyTR8ZLnwSEmQ4ANlBy86gVRpzOWqiUc0",
         },
     },
 }

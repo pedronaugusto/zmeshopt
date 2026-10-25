@@ -18,7 +18,7 @@ pub fn encodeFilterOct(comptime E: type, destination: []E, bits: u5, data: []con
     comptime assert(@sizeOf(E) == 4 or @sizeOf(E) == 8);
     assert(bits >= 2 and bits <= if (@sizeOf(E) == 4) 8 else 16);
     assert(data.len == destination.len);
-    c.meshopt_encodeFilterOct(destination.ptr, destination.len, @sizeOf(E), bits, @ptrCast(data.ptr));
+    c.meshopt_encodeFilterOct(destination.ptr, destination.len, @sizeOf(E), bits, @ptrCast(data.ptr)); // safe: [4]f32 elements read as their flat floats
 }
 
 /// Encodes unit quaternions with K-bit components (4 <= `bits` <= 16) into
@@ -27,7 +27,7 @@ pub fn encodeFilterQuat(comptime E: type, destination: []E, bits: u5, data: []co
     comptime assert(@sizeOf(E) == 8);
     assert(bits >= 4 and bits <= 16);
     assert(data.len == destination.len);
-    c.meshopt_encodeFilterQuat(destination.ptr, destination.len, @sizeOf(E), bits, @ptrCast(data.ptr));
+    c.meshopt_encodeFilterQuat(destination.ptr, destination.len, @sizeOf(E), bits, @ptrCast(data.ptr)); // safe: [4]f32 elements read as their flat floats
 }
 
 /// Encodes finite floats with an 8-bit exponent and K-bit mantissa
@@ -48,7 +48,7 @@ pub fn encodeFilterColor(comptime E: type, destination: []E, bits: u5, data: []c
     comptime assert(@sizeOf(E) == 4 or @sizeOf(E) == 8);
     assert(bits >= 2 and bits <= if (@sizeOf(E) == 4) 8 else 16);
     assert(data.len == destination.len);
-    c.meshopt_encodeFilterColor(destination.ptr, destination.len, @sizeOf(E), bits, @ptrCast(data.ptr));
+    c.meshopt_encodeFilterColor(destination.ptr, destination.len, @sizeOf(E), bits, @ptrCast(data.ptr)); // safe: [4]f32 elements read as their flat floats
 }
 
 const decode = @import("decode_filters.zig");

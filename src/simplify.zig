@@ -54,7 +54,7 @@ pub const Colors = struct {
 fn lockPtr(vertex_lock: ?[]const VertexFlags, vertex_count: usize) ?[*]const u8 {
     const lock = vertex_lock orelse return null;
     assert(lock.len == vertex_count);
-    return @ptrCast(lock.ptr);
+    return @ptrCast(lock.ptr); // safe: VertexFlags is packed struct(u8), one byte per vertex
 }
 
 /// Reduces triangle count while preserving appearance; `destination` needs

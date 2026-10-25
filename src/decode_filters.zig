@@ -4,7 +4,6 @@
 //! output of `decodeVertexBuffer` in place. Generic over the element type so
 //! the C API's "stride must be 4 or 8" prose becomes a compile error.
 
-const std = @import("std");
 const c = @import("c.zig").decode_filters;
 
 fn checkStride(comptime E: type, comptime valid: []const usize, comptime what: []const u8) void {

@@ -9,8 +9,8 @@
 //! and the idiomatic layer calls these on every backend — one path, tested
 //! everywhere.
 //!
-//! `src/abi_check.zig` holds these declarations to `src/abi_shim.h`; the
-//! canaries in `src/abi_canary_test.zig` prove the crossing bit-exact
+//! `src/testing/abi.zig` holds these declarations to `src/abi_shim.h`; the
+//! canaries in `src/testing/canary.zig` prove the crossing bit-exact
 //! and fail loudly when a fixed backend makes the shim retirable.
 
 const simplify = @import("c/simplify.zig");

@@ -1,0 +1,34 @@
+{
+  "sources": ["src"],
+  "test_roots": ["src/zmeshopt.zig"],
+  "test_dependencies": ["meshoptimizer_h"],
+  "shipped": {
+    "libs": "the vendored meshoptimizer: the library compiles its translation units, and the installed header is its file"
+  },
+  "docs": {
+    "zig build docs -- usage": {
+      "source": "examples/usage.zig",
+      "region": "usage",
+      "imports": ["zmeshopt"]
+    },
+    "zig build measurements": {
+      "command": ["zig", "build", "measurements"]
+    }
+  },
+  "extra_checks": [
+    ["zig", "build", "check-consumer"],
+    ["zig", "build", "check-comments"],
+    ["zig", "build", "check-coverage"],
+    ["zig", "build", "check-ignored"],
+    ["zig", "build", "check-numbers"],
+    ["zig", "build", "check-vendor"]
+  ],
+  "glint_paths": ["src", "examples", "ci", "build.zig"],
+  "glint": {
+    "rules": [
+      {"id": "P001", "level": "gate"},
+      {"id": "P003", "level": "gate"},
+      {"id": "Z026", "level": "gate"}
+    ]
+  }
+}

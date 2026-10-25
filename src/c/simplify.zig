@@ -5,12 +5,12 @@
 //!
 //! Upstream declares the option bits as anonymous enums taken as
 //! `unsigned int`; here they are packed structs over u32, and
-//! `src/abi_check.zig` proves each field sits on its upstream bit.
+//! `src/testing/abi.zig` proves each field sits on its upstream bit.
 
 /// Simplification options (upstream `meshopt_Simplify*`, a bitmask).
 pub const SimplifyOptions = packed struct(u32) {
     /// Upstream spells these as an ANONYMOUS enum, so there is no C type to
-    /// pair with; `abi_check.zig` pairs each bit against the enumerator
+    /// pair with; `src/testing/abi.zig` pairs each bit against the enumerator
     /// this prefix plus the PascalCased field name reconstructs.
     pub const upstream_prefix = "meshopt_Simplify";
 

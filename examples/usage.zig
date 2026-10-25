@@ -2,9 +2,9 @@
 //! triangle soup, optimize the orders, simplify a LOD, cut meshlets, and
 //! compress the buffers for storage.
 //!
-//! `zig build examples` builds AND runs this; `ci/readme_usage.sh` extracts
-//! the region between the usage markers into README.md, so the snippet a
-//! reader copies is code CI executes.
+//! The tests build and run this, and the gate holds README.md's copy of the
+//! region between the usage markers to it, so the snippet a reader copies is
+//! code the gate executes.
 
 const std = @import("std");
 const zmeshopt = @import("zmeshopt");
@@ -14,7 +14,7 @@ const Vertex = extern struct {
     normal: [3]f32,
 };
 
-pub fn main() !void {
+pub fn main(init: std.process.Init) !void {
     var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -69,11 +69,15 @@ pub fn main() !void {
     const encoded_indices = try zmeshopt.encodeIndexBuffer(encoded_indices_buffer, indices);
     // --- README:usage ---
 
-    std.debug.print("indexed:    {} corners -> {} vertices, {} triangles\n", .{ soup.len, vertices.len, indices.len / 3 });
-    std.debug.print("optimized:  ACMR {d:.3}, {} vertices transformed\n", .{ cache.acmr, cache.vertices_transformed });
-    std.debug.print("simplified: {} -> {} triangles (error {d:.4})\n", .{ indices.len / 3, lod.indices.len / 3, lod.err });
-    std.debug.print("meshlets:   {} (first: {} vertices, {} triangles, radius {d:.2})\n", .{ meshlets.len, meshlets[0].vertex_count, meshlets[0].triangle_count, bounds.radius });
-    std.debug.print("encoded:    vertices {} -> {} bytes, indices {} -> {} bytes\n", .{ vertices.len * @sizeOf(Vertex), encoded_vertices.len, indices.len * 4, encoded_indices.len });
+    var buffer: [4096]u8 = undefined;
+    var stdout = std.Io.File.stdout().writer(init.io, &buffer);
+    const out = &stdout.interface;
+    try out.print("indexed:    {} corners -> {} vertices, {} triangles\n", .{ soup.len, vertices.len, indices.len / 3 });
+    try out.print("optimized:  ACMR {d:.3}, {} vertices transformed\n", .{ cache.acmr, cache.vertices_transformed });
+    try out.print("simplified: {} -> {} triangles (error {d:.4})\n", .{ indices.len / 3, lod.indices.len / 3, lod.err });
+    try out.print("meshlets:   {} (first: {} vertices, {} triangles, radius {d:.2})\n", .{ meshlets.len, meshlets[0].vertex_count, meshlets[0].triangle_count, bounds.radius });
+    try out.print("encoded:    vertices {} -> {} bytes, indices {} -> {} bytes\n", .{ vertices.len * @sizeOf(Vertex), encoded_vertices.len, indices.len * 4, encoded_indices.len });
+    try out.flush();
 }
 
 /// `n` x `n` quads of a wavy heightfield as raw unindexed triangles — the

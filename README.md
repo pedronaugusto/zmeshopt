@@ -14,7 +14,7 @@ The block below is a region of [`examples/usage.zig`](examples/usage.zig),
 which `zig build examples` builds and runs; `ci/readme_usage.sh` extracts it
 and CI compares the result against this file.
 
-<!-- BEGIN GENERATED ci/readme_usage.sh -->
+<!-- BEGIN GENERATED zig build docs -- usage -->
 ```zig
 const zmeshopt = @import("zmeshopt");
 
@@ -272,20 +272,16 @@ mutation.
 
 ### By the numbers
 
-<!-- BEGIN GENERATED ci/measurements.sh --markdown -->
+<!-- BEGIN GENERATED zig build measurements -->
 | | |
 |---:|---|
 | **0.2.0** | version (one home: `build.zig.zon`) |
-| **85** | upstream C entry points (`MESHOPTIMIZER_API`/`_EXPERIMENTAL` in the vendored header) |
-| **85** | Zig externs (`pub extern fn` in `src/c/*.zig`) |
+| **85** | C entry points (`MESHOPTIMIZER_API` and `MESHOPTIMIZER_EXPERIMENTAL` in the vendored header), each with its Zig extern |
 | **8** | of them marked experimental by upstream, bound and labelled |
-| **71** | Zig tests `zig build test` executes |
+| **9** | forwarders in `src/abi_shim.c` for the two caller shapes Zig 0.16.0 miscompiled |
+| **17** | deliberate drifts the ABI guard must name (`src/testing/abi.zig`) |
 | **8** | assertions in the standalone C smoke test |
 | **20** | vendored meshoptimizer translation units `build.zig` compiles |
-| **3859** | Zig source lines (`src/`) |
-| **22** | deliberate drifts `ci/check-abi-drift.sh` must refuse |
-| **24** | steps `ci/run.sh` runs |
-| **7** | further targets `ci/run.sh` cross-compiles |
 <!-- END GENERATED -->
 
 `ci/measurements.sh` recomputes each of those from the tree and

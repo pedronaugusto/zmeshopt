@@ -9,8 +9,8 @@
  * floats FIRST, or its struct return as an out-parameter, and tail-calls
  * upstream. Compiled by clang regardless of the Zig backend, and called by
  * the idiomatic layer on every backend: one code path, tested everywhere.
- * src/abi_check.zig holds src/shim.zig's externs to these prototypes; the
- * toolchain watch in src/abi_canary_test.zig says when the shim can go.
+ * src/testing/abi.zig holds src/shim.zig's externs to these prototypes; the
+ * toolchain watch in src/testing/canary.zig says when the shim can go.
  */
 #ifndef ZMESHOPT_ABI_SHIM_H
 #define ZMESHOPT_ABI_SHIM_H

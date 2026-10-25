@@ -5,11 +5,11 @@
 //!
 //! Upstream declares the option bits as an anonymous enum taken as
 //! `unsigned int`; here they are a packed struct over u32, and
-//! `src/abi_check.zig` proves each field sits on its upstream bit.
+//! `src/testing/abi.zig` proves each field sits on its upstream bit.
 
 /// Tangent generation options (upstream `meshopt_Tangent*`, a bitmask).
 pub const TangentOptions = packed struct(u32) {
-    /// Upstream spells these as an ANONYMOUS enum; `abi_check.zig` pairs each
+    /// Upstream spells these as an ANONYMOUS enum; `src/testing/abi.zig` pairs each
     /// bit against this prefix plus the PascalCased field name.
     pub const upstream_prefix = "meshopt_Tangent";
 

@@ -3,7 +3,7 @@
 //! Three layers, thinnest first:
 //!
 //!   * `c` — the raw externs, one module per header region, mirroring the
-//!     vendored `meshoptimizer.h` exactly; `src/abi_check.zig`'s reverse
+//!     vendored `meshoptimizer.h` exactly; `src/testing/abi.zig`'s reverse
 //!     sweep fails the build if a header function is ever missing.
 //!   * The idiomatic layer — slice-based wrappers in the per-area files
 //!     (`src/remap.zig`, `src/simplify.zig`, …), re-exported flat below
@@ -207,8 +207,9 @@ test version {
 }
 
 test {
-    _ = @import("abi_check.zig");
-    _ = @import("abi_canary_test.zig");
+    _ = @import("testing/abi.zig");
+    _ = @import("testing/canary.zig");
+    _ = @import("contract.zig");
     _ = remap_area;
     _ = cache_area;
     _ = index_codec_area;

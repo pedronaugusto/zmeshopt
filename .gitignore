@@ -10,8 +10,7 @@ zig-pkg/
 # macOS.
 .DS_Store
 
-# Build artefacts from ad-hoc compiler invocations, and the backup
-# ci/check-abi-drift.sh leaves beside a file if it is interrupted mid-run.
+# Build artefacts from ad-hoc compiler invocations.
 *.o
 *.obj
 *.a
@@ -19,4 +18,3 @@ zig-pkg/
 *.so
 *.dylib
 *.dll
-*.bak

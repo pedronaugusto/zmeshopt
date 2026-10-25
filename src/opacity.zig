@@ -49,7 +49,7 @@ pub fn opacityMapMeasure(comptime V: type, levels: []u8, sources: []u32, omm_ind
 /// `opacityMapEntrySize`.
 pub fn opacityMapRasterize(result: []u8, level: u4, states: OpacityStates, uv0: *const [2]f32, uv1: *const [2]f32, uv2: *const [2]f32, texture: AlphaTexture) void {
     assert(result.len >= opacityMapEntrySize(level, states));
-    c.meshopt_opacityMapRasterize(result.ptr, level, @backingInt(states), @ptrCast(uv0), @ptrCast(uv1), @ptrCast(uv2), texture.data.ptr, texture.stride, texture.pitch, texture.width, texture.height);
+    c.meshopt_opacityMapRasterize(result.ptr, level, @backingInt(states), @ptrCast(uv0), @ptrCast(uv1), @ptrCast(uv2), texture.data.ptr, texture.stride, texture.pitch, texture.width, texture.height); // safe: each *const [2]f32 read as its two floats
 }
 
 /// EXPERIMENTAL upstream: bytes one OMM entry occupies at `level`/`states`.

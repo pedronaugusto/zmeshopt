@@ -7,7 +7,7 @@
 /// Exponent-sharing mode for `meshopt_encodeFilterExp`.
 pub const EncodeExpMode = enum(c_uint) {
     /// Upstream enumerators are `meshopt_EncodeExpSeparate` etc.;
-    /// `abi_check.zig` pairs each value against this prefix plus the
+    /// `src/testing/abi.zig` pairs each value against this prefix plus the
     /// PascalCased field name.
     pub const upstream_prefix = "meshopt_EncodeExp";
 
