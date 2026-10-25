@@ -157,6 +157,16 @@ in snake case) and the reason (`Reason`), so the caller learns which call
 refused and why. `Failure` is aegis's `err.Context`, which keeps four frames
 and marks a fifth as truncated.
 
+Every call that takes indices with a count of what they index refuses an
+index at or past it with `OutOfRange`, the frame's reason
+`index_out_of_range` and its `at` the first such index's position. Upstream
+reads or writes at each index and only asserts the bound, and index buffers
+come from meshes the program did not make. The check finds the largest index
+in one pass and looks for the position only when it refuses; the bench's
+`vertex_cache_zig` and `vertex_cache_raw` rows are the same call with and
+without it. A remap table's unused entries (`~0`) map nowhere and are
+skipped.
+
 The decoders take their bytes as `zmeshopt.Encoded`, aegis's mark for input
 from outside the program, so a parser of untrusted bytes is visible in its
 signature. The meshlet decoders take their counts apart from their output
@@ -339,7 +349,9 @@ and both decoders through the idiomatic layer (`bench/binding.zig`), against
 the same upstream work looped in C (`bench/baseline.c`), through shakedown in
 ReleaseFast. The three calls the idiomatic layer routes through the shim get
 a third row looping the forwarder from C, so the hop alone is the difference
-of two rows that differ in nothing else. The C twin takes floats first, as
+of two rows that differ in nothing else; `vertex_cache_raw` calls the extern
+`optimizeVertexCache` wraps, so the index range check is the difference of
+two Zig rows. The C twin takes floats first, as
 the shim spells them, so no row crosses a shape the shim exists for. The
 gate runs every row once; timings are evidence, never a correctness gate.
 

@@ -20,6 +20,7 @@ const contract = @import("contract.zig");
 pub fn partitionClusters(comptime V: type, destination: []u32, cluster_indices: []const u32, cluster_index_counts: []const u32, vertices: []const V, target_partition_size: usize, failure: *failure_.Failure) failure_.Error!usize {
     contract.checkVertex(V, 3);
     try failure_.held(failure, .partition_clusters, checkClusters(destination, cluster_indices, cluster_index_counts));
+    try failure_.bounded(failure, .partition_clusters, cluster_indices, vertices.len);
     return c.meshopt_partitionClusters(destination.ptr, cluster_indices.ptr, cluster_indices.len, cluster_index_counts.ptr, cluster_index_counts.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), target_partition_size);
 }
 
@@ -27,6 +28,7 @@ pub fn partitionClusters(comptime V: type, destination: []u32, cluster_indices: 
 /// clusters. `vertex_count` still bounds every cluster index.
 pub fn partitionClustersBySharing(destination: []u32, cluster_indices: []const u32, cluster_index_counts: []const u32, vertex_count: usize, target_partition_size: usize, failure: *failure_.Failure) failure_.Error!usize {
     try failure_.held(failure, .partition_clusters_by_sharing, checkClusters(destination, cluster_indices, cluster_index_counts));
+    try failure_.bounded(failure, .partition_clusters_by_sharing, cluster_indices, vertex_count);
     return c.meshopt_partitionClusters(destination.ptr, cluster_indices.ptr, cluster_indices.len, cluster_index_counts.ptr, cluster_index_counts.len, null, vertex_count, 0, target_partition_size);
 }
 
@@ -64,4 +66,11 @@ test partitionClustersBySharing {
     const partitions = try partitionClustersBySharing(&destination, &cluster_indices, &cluster_index_counts, 10, 2, &failure);
     try std.testing.expect(partitions >= 1 and partitions <= 3);
     try std.testing.expectEqual(destination[0], destination[1]);
+}
+
+test "a cluster index past the vertex count is refused, naming its position" {
+    var failure: failure_.Failure = .{};
+    var destination: [1]u32 = undefined;
+    try std.testing.expectError(error.OutOfRange, partitionClustersBySharing(&destination, &.{ 0, 1, 2, 2, 1, 4 }, &.{6}, 4, 1, &failure));
+    try std.testing.expectEqualSlices(failure_.Frame, &.{.{ .call = .partition_clusters_by_sharing, .reason = .index_out_of_range, .at = 5 }}, failure.frames());
 }

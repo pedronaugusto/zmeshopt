@@ -22,6 +22,7 @@ pub fn generateTangents(comptime P: type, comptime N: type, comptime U: type, re
     contract.checkVertex(U, 2);
     try failure_.held(failure, .generate_tangents, check.same(normals.len, positions.len));
     try failure_.held(failure, .generate_tangents, check.same(uvs.len, positions.len));
+    if (indices) |ix| try failure_.bounded(failure, .generate_tangents, ix, positions.len);
     const index_count = if (indices) |ix| ix.len else positions.len;
     // tangentspace.cpp:383 asserts the count either way, so unindexed input
     // has to be whole triangles too.
@@ -62,4 +63,13 @@ test generateTangents {
     var unindexed: [3][4]f32 = undefined;
     try generateTangents([3]f32, [3]f32, [2]f32, &unindexed, null, &positions, &normals, &uvs, .{}, &failure);
     try std.testing.expectEqualSlices(u8, std.mem.sliceAsBytes(&tangents), std.mem.sliceAsBytes(&unindexed));
+}
+
+test "an index past the positions is refused, naming its position" {
+    var failure: failure_.Failure = .{};
+    const storage = [_][3]f32{ .{ 0, 0, 0 }, .{ 1, 0, 0 }, .{ 0, 1, 0 }, .{ 1, 1, 0 } };
+    const uvs = [_][2]f32{ .{ 0, 0 }, .{ 1, 0 }, .{ 0, 1 }, .{ 1, 1 } };
+    var result: [3][4]f32 = undefined;
+    try std.testing.expectError(error.OutOfRange, generateTangents([3]f32, [3]f32, [2]f32, &result, &.{ 0, 1, 3 }, storage[0..3], storage[0..3], uvs[0..3], .{}, &failure));
+    try std.testing.expectEqualSlices(failure_.Frame, &.{.{ .call = .generate_tangents, .reason = .index_out_of_range, .at = 2 }}, failure.frames());
 }

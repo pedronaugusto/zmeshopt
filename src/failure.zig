@@ -12,6 +12,7 @@ const check = @import("check.zig");
 pub const Call = enum {
     analyze_coverage,
     analyze_overdraw,
+    analyze_vertex_fetch,
     analyze_vertex_cache,
     build_meshlets,
     build_meshlets_bound,
@@ -59,6 +60,7 @@ pub const Call = enum {
     optimize_vertex_cache_fifo,
     optimize_vertex_cache_strip,
     optimize_vertex_fetch,
+    optimize_vertex_fetch_remap,
     partition_clusters,
     partition_clusters_by_sharing,
     remap_index_buffer,
@@ -91,6 +93,9 @@ pub const Reason = enum {
     truncated,
     /// Upstream's -3: the encoding does not end where the bytes do.
     mismatched_end,
+    /// An index at or past the count of what it indexes; `at` is its
+    /// position. Upstream reads or writes there and only asserts.
+    index_out_of_range,
 };
 
 /// One refusal.
@@ -98,6 +103,9 @@ pub const Frame = struct {
     pub const aegis_public_frame = true;
     call: Call,
     reason: Reason,
+    /// For `index_out_of_range`, the position of the first index past the
+    /// count; 0 for every other reason.
+    at: u64 = 0,
 };
 
 /// What refused, oldest first. A call that refuses pushes one frame; four
@@ -128,6 +136,21 @@ pub fn refuse(failure: *Failure, call: Call, e: check.Error) check.Error {
         error.OutOfRange => .out_of_range,
     } });
     return e;
+}
+
+/// Refuses `indices` unless each is below `count`, with a frame naming
+/// `call` and the first that is not.
+pub fn bounded(failure: *Failure, call: Call, indices: anytype, count: usize) error{OutOfRange}!void {
+    const at = check.firstPast(indices, count) orelse return;
+    failure.push(.{ .call = call, .reason = .index_out_of_range, .at = at });
+    return error.OutOfRange;
+}
+
+/// `bounded` for a remap table, whose unused entries (`~0`) map nowhere.
+pub fn boundedRemap(failure: *Failure, call: Call, remap: []const u32, count: usize) error{OutOfRange}!void {
+    const at = check.firstRemapPast(remap, count) orelse return;
+    failure.push(.{ .call = call, .reason = .index_out_of_range, .at = at });
+    return error.OutOfRange;
 }
 
 /// Nothing for upstream's 0; otherwise a frame naming `call` and the code,
@@ -183,7 +206,7 @@ const sources = [_][]const u8{
 };
 
 test "every frame a call pushes names that call" {
-    // Inside `pub fn x`, `held`, `refuse` and `decoded` must name `.x` as
+    // Inside `pub fn x`, every function that pushes must name `.x` as
     // `Call` spells it, so a frame can never name a call other than the one
     // that refused. The compiler proves the name exists.
     var checked: usize = 0;
@@ -195,7 +218,7 @@ test "every frame a call pushes names that call" {
                 const name = line[std.mem.findScalar(u8, line, ' ').? + 1 ..];
                 function = if (std.mem.startsWith(u8, line, "pub fn ")) name["fn ".len..std.mem.findScalar(u8, name, '(').?] else "";
             }
-            inline for (.{ "held", "refuse", "decoded" }) |pusher| {
+            inline for (.{ "held", "refuse", "decoded", "bounded", "boundedRemap" }) |pusher| {
                 const marker = "failure_." ++ pusher ++ "(failure, .";
                 var rest: []const u8 = line;
                 while (std.mem.find(u8, rest, marker)) |at| {
@@ -238,4 +261,11 @@ test "no module refuses without a frame" {
             if (std.mem.find(u8, line, "Failure = .{}") != null) try std.testing.expect(in_test);
         }
     }
+}
+
+test bounded {
+    var failure: Failure = .{};
+    try bounded(&failure, .optimize_vertex_cache, @as([]const u32, &.{ 0, 1, 2 }), 3);
+    try std.testing.expectError(error.OutOfRange, bounded(&failure, .optimize_vertex_cache, @as([]const u32, &.{ 0, 1, 2, 2, 1, 3 }), 3));
+    try std.testing.expectEqualSlices(Frame, &.{.{ .call = .optimize_vertex_cache, .reason = .index_out_of_range, .at = 5 }}, failure.frames());
 }

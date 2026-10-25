@@ -65,6 +65,7 @@ pub fn simplify(comptime V: type, destination: []u32, indices: []const u32, vert
     contract.checkVertex(V, 3);
     try failure_.held(failure, .simplify, check.triangles(indices.len));
     try failure_.held(failure, .simplify, check.room(destination.len, indices.len));
+    try failure_.bounded(failure, .simplify, indices, vertices.len);
     var err: f32 = 0;
     const n = shim.zmeshopt_shim_simplify(target_error, destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), target_index_count, options, &err);
     return .{ .indices = destination[0..n], .err = err };
@@ -77,6 +78,7 @@ pub fn simplifyWithAttributes(comptime V: type, destination: []u32, indices: []c
     try failure_.held(failure, .simplify_with_attributes, check.triangles(indices.len));
     try failure_.held(failure, .simplify_with_attributes, check.room(destination.len, indices.len));
     if (attributes) |attr| try failure_.held(failure, .simplify_with_attributes, check.range(attr.weights.len <= 32));
+    try failure_.bounded(failure, .simplify_with_attributes, indices, vertices.len);
     var err: f32 = 0;
     const n = shim.zmeshopt_shim_simplifyWithAttributes(
         target_error,
@@ -105,6 +107,7 @@ pub fn simplifyWithUpdate(comptime V: type, indices: []u32, vertices: []V, attri
     contract.checkVertex(V, 3);
     try failure_.held(failure, .simplify_with_update, check.triangles(indices.len));
     if (attributes) |attr| try failure_.held(failure, .simplify_with_update, check.range(attr.weights.len <= 32));
+    try failure_.bounded(failure, .simplify_with_update, indices, vertices.len);
     var err: f32 = 0;
     const n = shim.zmeshopt_shim_simplifyWithUpdate(
         target_error,
@@ -132,6 +135,7 @@ pub fn simplifySloppy(comptime V: type, destination: []u32, indices: []const u32
     contract.checkVertex(V, 3);
     try failure_.held(failure, .simplify_sloppy, check.triangles(indices.len));
     try failure_.held(failure, .simplify_sloppy, check.room(destination.len, indices.len));
+    try failure_.bounded(failure, .simplify_sloppy, indices, vertices.len);
     var err: f32 = 0;
     const n = shim.zmeshopt_shim_simplifySloppy(target_error, destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), try failure_.held(failure, .simplify_sloppy, lockPtr(vertex_lock, vertices.len)), target_index_count, &err);
     return .{ .indices = destination[0..n], .err = err };
@@ -143,6 +147,7 @@ pub fn simplifyPrune(comptime V: type, destination: []u32, indices: []const u32,
     contract.checkVertex(V, 3);
     try failure_.held(failure, .simplify_prune, check.triangles(indices.len));
     try failure_.held(failure, .simplify_prune, check.room(destination.len, indices.len));
+    try failure_.bounded(failure, .simplify_prune, indices, vertices.len);
     const n = c.meshopt_simplifyPrune(destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), target_error);
     return destination[0..n];
 }
@@ -267,4 +272,12 @@ test scale {
     // cube reports 1, not the diagonal).
     const vertices = [_][3]f32{ .{ 0, 0, 0 }, .{ 2, 1, 1 } };
     try std.testing.expectApproxEqRel(@as(f32, 2.0), scale([3]f32, &vertices), 1e-6);
+}
+
+test "an index past the vertices is refused, naming its position" {
+    var failure: failure_.Failure = .{};
+    const storage = [_][3]f32{ .{ 0, 0, 0 }, .{ 1, 0, 0 }, .{ 0, 1, 0 }, .{ 1, 1, 0 } };
+    var destination: [6]u32 = undefined;
+    try std.testing.expectError(error.OutOfRange, simplify([3]f32, &destination, &.{ 0, 1, 2, 2, 1, 3 }, storage[0..3], 3, 0.01, .{}, &failure));
+    try std.testing.expectEqualSlices(failure_.Frame, &.{.{ .call = .simplify, .reason = .index_out_of_range, .at = 5 }}, failure.frames());
 }

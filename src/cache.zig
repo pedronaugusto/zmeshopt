@@ -13,6 +13,7 @@ const contract = @import("contract.zig");
 pub fn optimizeVertexCache(destination: []u32, indices: []const u32, vertex_count: usize, failure: *failure_.Failure) failure_.Error!void {
     try failure_.held(failure, .optimize_vertex_cache, check.triangles(indices.len));
     try failure_.held(failure, .optimize_vertex_cache, check.room(destination.len, indices.len));
+    try failure_.bounded(failure, .optimize_vertex_cache, indices, vertex_count);
     c.meshopt_optimizeVertexCache(destination.ptr, indices.ptr, indices.len, vertex_count);
 }
 
@@ -21,6 +22,7 @@ pub fn optimizeVertexCache(destination: []u32, indices: []const u32, vertex_coun
 pub fn optimizeVertexCacheStrip(destination: []u32, indices: []const u32, vertex_count: usize, failure: *failure_.Failure) failure_.Error!void {
     try failure_.held(failure, .optimize_vertex_cache_strip, check.triangles(indices.len));
     try failure_.held(failure, .optimize_vertex_cache_strip, check.room(destination.len, indices.len));
+    try failure_.bounded(failure, .optimize_vertex_cache_strip, indices, vertex_count);
     c.meshopt_optimizeVertexCacheStrip(destination.ptr, indices.ptr, indices.len, vertex_count);
 }
 
@@ -29,6 +31,7 @@ pub fn optimizeVertexCacheStrip(destination: []u32, indices: []const u32, vertex
 pub fn optimizeVertexCacheFifo(destination: []u32, indices: []const u32, vertex_count: usize, cache_size: u32, failure: *failure_.Failure) failure_.Error!void {
     try failure_.held(failure, .optimize_vertex_cache_fifo, check.triangles(indices.len));
     try failure_.held(failure, .optimize_vertex_cache_fifo, check.room(destination.len, indices.len));
+    try failure_.bounded(failure, .optimize_vertex_cache_fifo, indices, vertex_count);
     c.meshopt_optimizeVertexCacheFifo(destination.ptr, indices.ptr, indices.len, vertex_count, cache_size);
 }
 
@@ -40,6 +43,7 @@ pub fn optimizeOverdraw(comptime V: type, destination: []u32, indices: []const u
     contract.checkVertex(V, 3);
     try failure_.held(failure, .optimize_overdraw, check.triangles(indices.len));
     try failure_.held(failure, .optimize_overdraw, check.room(destination.len, indices.len));
+    try failure_.bounded(failure, .optimize_overdraw, indices, vertices.len);
     c.meshopt_optimizeOverdraw(destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), threshold);
 }
 
@@ -50,12 +54,14 @@ pub fn optimizeOverdraw(comptime V: type, destination: []u32, indices: []const u
 pub fn optimizeVertexFetch(comptime V: type, destination: []V, indices: []u32, vertices: []const V, failure: *failure_.Failure) failure_.Error!usize {
     contract.checkVertexSize(V);
     try failure_.held(failure, .optimize_vertex_fetch, check.room(destination.len, vertices.len));
+    try failure_.bounded(failure, .optimize_vertex_fetch, indices, vertices.len);
     return c.meshopt_optimizeVertexFetch(destination.ptr, indices.ptr, indices.len, vertices.ptr, vertices.len, @sizeOf(V));
 }
 
 /// Generates a vertex fetch remap table instead of reordering directly;
 /// returns the unique vertex count. `destination.len` is the vertex count.
-pub fn optimizeVertexFetchRemap(destination: []u32, indices: []const u32) usize {
+pub fn optimizeVertexFetchRemap(destination: []u32, indices: []const u32, failure: *failure_.Failure) failure_.Error!usize {
+    try failure_.bounded(failure, .optimize_vertex_fetch_remap, indices, destination.len);
     return c.meshopt_optimizeVertexFetchRemap(destination.ptr, indices.ptr, indices.len, destination.len);
 }
 
@@ -89,9 +95,17 @@ test optimizeVertexFetch {
 test optimizeVertexFetchRemap {
     var remap: [3]u32 = undefined;
     const indices = [_]u32{ 2, 0, 1 };
-    const unique = optimizeVertexFetchRemap(&remap, &indices);
+    var failure: failure_.Failure = .{};
+    const unique = try optimizeVertexFetchRemap(&remap, &indices, &failure);
     try std.testing.expectEqual(@as(usize, 3), unique);
     try std.testing.expectEqual(@as(u32, 0), remap[2]);
+}
+
+test "an index past the remap it fills is refused, naming its position" {
+    var failure: failure_.Failure = .{};
+    var storage: [4]u32 = undefined;
+    try std.testing.expectError(error.OutOfRange, optimizeVertexFetchRemap(storage[0..3], &.{ 2, 0, 3 }, &failure));
+    try std.testing.expectEqualSlices(failure_.Frame, &.{.{ .call = .optimize_vertex_fetch_remap, .reason = .index_out_of_range, .at = 2 }}, failure.frames());
 }
 
 test "a destination shorter than the index buffer is refused before upstream writes" {
@@ -106,4 +120,11 @@ test "an index buffer that is not whole triangles is refused" {
     const indices = [_]u32{ 0, 1, 2, 2 };
     var optimized: [4]u32 = undefined;
     try std.testing.expectError(error.NotTriangles, optimizeVertexCache(&optimized, &indices, 3, &failure));
+}
+
+test "an index past the vertex count is refused, naming its position" {
+    var failure: failure_.Failure = .{};
+    var destination: [6]u32 = undefined;
+    try std.testing.expectError(error.OutOfRange, optimizeVertexCache(&destination, &.{ 0, 1, 2, 2, 1, 3 }, 3, &failure));
+    try std.testing.expectEqualSlices(failure_.Frame, &.{.{ .call = .optimize_vertex_cache, .reason = .index_out_of_range, .at = 5 }}, failure.frames());
 }

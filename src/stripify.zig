@@ -14,6 +14,7 @@ const c = @import("c.zig").stripify;
 pub fn stripify(destination: []u32, indices: []const u32, vertex_count: usize, restart_index: u32, failure: *failure_.Failure) failure_.Error![]u32 {
     try failure_.held(failure, .stripify, check.triangles(indices.len));
     try failure_.held(failure, .stripify, check.room(destination.len, try stripifyBound(indices.len, failure)));
+    try failure_.bounded(failure, .stripify, indices, vertex_count);
     const n = c.meshopt_stripify(destination.ptr, indices.ptr, indices.len, vertex_count, restart_index);
     return destination[0..n];
 }

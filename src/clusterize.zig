@@ -57,6 +57,7 @@ fn checkBuildBuffers(meshlets: []const Meshlet, meshlet_vertices: []u32, meshlet
 pub fn buildMeshlets(comptime V: type, meshlets: []Meshlet, meshlet_vertices: []u32, meshlet_triangles: []u8, indices: []const u32, vertices: []const V, max_vertices: usize, max_triangles: usize, cone_weight: f32, failure: *failure_.Failure) failure_.Error![]Meshlet {
     contract.checkVertex(V, 3);
     try failure_.held(failure, .build_meshlets, checkBuildBuffers(meshlets, meshlet_vertices, meshlet_triangles, indices.len, max_vertices, max_triangles, max_triangles));
+    try failure_.bounded(failure, .build_meshlets, indices, vertices.len);
     const n = shim.zmeshopt_shim_buildMeshlets(cone_weight, meshlets.ptr, meshlet_vertices.ptr, meshlet_triangles.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), max_vertices, max_triangles);
     return meshlets[0..n];
 }
@@ -65,6 +66,7 @@ pub fn buildMeshlets(comptime V: type, meshlets: []Meshlet, meshlet_vertices: []
 /// optimize for vertex cache first for best results.
 pub fn buildMeshletsScan(meshlets: []Meshlet, meshlet_vertices: []u32, meshlet_triangles: []u8, indices: []const u32, vertex_count: usize, max_vertices: usize, max_triangles: usize, failure: *failure_.Failure) failure_.Error![]Meshlet {
     try failure_.held(failure, .build_meshlets_scan, checkBuildBuffers(meshlets, meshlet_vertices, meshlet_triangles, indices.len, max_vertices, max_triangles, max_triangles));
+    try failure_.bounded(failure, .build_meshlets_scan, indices, vertex_count);
     const n = c.meshopt_buildMeshletsScan(meshlets.ptr, meshlet_vertices.ptr, meshlet_triangles.ptr, indices.ptr, indices.len, vertex_count, max_vertices, max_triangles);
     return meshlets[0..n];
 }
@@ -91,6 +93,7 @@ fn meshletsBound(index_count: usize, max_vertices: usize, max_triangles: usize) 
 pub fn buildMeshletsFlex(comptime V: type, meshlets: []Meshlet, meshlet_vertices: []u32, meshlet_triangles: []u8, indices: []const u32, vertices: []const V, max_vertices: usize, min_triangles: usize, max_triangles: usize, cone_weight: f32, split_factor: f32, failure: *failure_.Failure) failure_.Error![]Meshlet {
     contract.checkVertex(V, 3);
     try failure_.held(failure, .build_meshlets_flex, checkBuildBuffers(meshlets, meshlet_vertices, meshlet_triangles, indices.len, max_vertices, min_triangles, max_triangles));
+    try failure_.bounded(failure, .build_meshlets_flex, indices, vertices.len);
     const n = shim.zmeshopt_shim_buildMeshletsFlex(cone_weight, split_factor, meshlets.ptr, meshlet_vertices.ptr, meshlet_triangles.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), max_vertices, min_triangles, max_triangles);
     return meshlets[0..n];
 }
@@ -100,6 +103,7 @@ pub fn buildMeshletsFlex(comptime V: type, meshlets: []Meshlet, meshlet_vertices
 pub fn buildMeshletsSpatial(comptime V: type, meshlets: []Meshlet, meshlet_vertices: []u32, meshlet_triangles: []u8, indices: []const u32, vertices: []const V, max_vertices: usize, min_triangles: usize, max_triangles: usize, fill_weight: f32, failure: *failure_.Failure) failure_.Error![]Meshlet {
     contract.checkVertex(V, 3);
     try failure_.held(failure, .build_meshlets_spatial, checkBuildBuffers(meshlets, meshlet_vertices, meshlet_triangles, indices.len, max_vertices, min_triangles, max_triangles));
+    try failure_.bounded(failure, .build_meshlets_spatial, indices, vertices.len);
     const n = shim.zmeshopt_shim_buildMeshletsSpatial(fill_weight, meshlets.ptr, meshlet_vertices.ptr, meshlet_triangles.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), max_vertices, min_triangles, max_triangles);
     return meshlets[0..n];
 }
@@ -108,6 +112,7 @@ pub fn buildMeshletsSpatial(comptime V: type, meshlets: []Meshlet, meshlet_verti
 /// slices `vertexSlice`/`triangleSlice` produce.
 pub fn optimizeMeshlet(meshlet_vertices: []u32, meshlet_triangles: []u8, failure: *failure_.Failure) failure_.Error!void {
     try failure_.held(failure, .optimize_meshlet, check.triangles(meshlet_triangles.len));
+    try failure_.bounded(failure, .optimize_meshlet, meshlet_triangles, meshlet_vertices.len);
     c.meshopt_optimizeMeshlet(meshlet_vertices.ptr, meshlet_triangles.ptr, meshlet_triangles.len / 3, meshlet_vertices.len);
 }
 
@@ -117,6 +122,7 @@ pub fn optimizeMeshlet(meshlet_vertices: []u32, meshlet_triangles: []u8, failure
 pub fn optimizeMeshletLevel(meshlet_vertices: []u32, meshlet_triangles: []u8, level: u4, failure: *failure_.Failure) failure_.Error!void {
     try failure_.held(failure, .optimize_meshlet_level, check.triangles(meshlet_triangles.len));
     try failure_.held(failure, .optimize_meshlet_level, check.range(level <= 9));
+    try failure_.bounded(failure, .optimize_meshlet_level, meshlet_triangles, meshlet_vertices.len);
     c.meshopt_optimizeMeshletLevel(meshlet_vertices.ptr, meshlet_vertices.len, meshlet_triangles.ptr, meshlet_triangles.len / 3, level);
 }
 
@@ -126,6 +132,7 @@ pub fn computeClusterBounds(comptime V: type, indices: []const u32, vertices: []
     contract.checkVertex(V, 3);
     try failure_.held(failure, .compute_cluster_bounds, check.triangles(indices.len));
     try failure_.held(failure, .compute_cluster_bounds, check.range(indices.len / 3 <= 512));
+    try failure_.bounded(failure, .compute_cluster_bounds, indices, vertices.len);
     return c.meshopt_computeClusterBounds(indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V));
 }
 
@@ -134,6 +141,8 @@ pub fn computeClusterBounds(comptime V: type, indices: []const u32, vertices: []
 pub fn computeMeshletBounds(comptime V: type, meshlet_vertices: []const u32, meshlet_triangles: []const u8, vertices: []const V, failure: *failure_.Failure) failure_.Error!Bounds {
     contract.checkVertex(V, 3);
     try failure_.held(failure, .compute_meshlet_bounds, check.triangles(meshlet_triangles.len));
+    try failure_.bounded(failure, .compute_meshlet_bounds, meshlet_vertices, vertices.len);
+    try failure_.bounded(failure, .compute_meshlet_bounds, meshlet_triangles, meshlet_vertices.len);
     return c.meshopt_computeMeshletBounds(meshlet_vertices.ptr, meshlet_triangles.ptr, meshlet_triangles.len / 3, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V));
 }
 
@@ -317,4 +326,19 @@ test "a meshlet optimization level past upstream's range is refused" {
     var vertices = [_]u32{ 0, 1, 2 };
     var triangles = [_]u8{ 0, 1, 2 };
     try std.testing.expectError(error.OutOfRange, optimizeMeshletLevel(&vertices, &triangles, 10, &failure));
+}
+
+test "a meshlet triangle past the meshlet's vertices is refused, naming its position" {
+    var failure: failure_.Failure = .{};
+    var storage = [_]u32{ 0, 1, 2, 3 };
+    var triangles = [_]u8{ 0, 1, 3 };
+    try std.testing.expectError(error.OutOfRange, optimizeMeshlet(storage[0..3], &triangles, &failure));
+    try std.testing.expectEqualSlices(failure_.Frame, &.{.{ .call = .optimize_meshlet, .reason = .index_out_of_range, .at = 2 }}, failure.frames());
+}
+
+test "a meshlet vertex past the vertices is refused, naming its position" {
+    var failure: failure_.Failure = .{};
+    const storage = [_][3]f32{ .{ 0, 0, 0 }, .{ 1, 0, 0 }, .{ 0, 1, 0 }, .{ 1, 1, 0 } };
+    try std.testing.expectError(error.OutOfRange, computeMeshletBounds([3]f32, &.{ 0, 3, 1 }, &.{ 0, 1, 2 }, storage[0..3], &failure));
+    try std.testing.expectEqualSlices(failure_.Frame, &.{.{ .call = .compute_meshlet_bounds, .reason = .index_out_of_range, .at = 1 }}, failure.frames());
 }

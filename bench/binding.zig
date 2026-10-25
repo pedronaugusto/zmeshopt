@@ -2,8 +2,10 @@
 //! (bench/baseline.c), measured through shakedown in ReleaseFast, so the
 //! Zig layer's cost is a number. Where the idiomatic layer crosses
 //! src/abi_shim.c, a third row loops the forwarder from C, so the hop alone
-//! is the difference of two C rows. Timings are evidence, never a
-//! correctness gate; `--smoke` runs each row once.
+//! is the difference of two C rows, and `vertex_cache_raw` calls the extern
+//! the idiomatic call wraps, so the index range check is the difference of
+//! two Zig rows. Timings are evidence, never a correctness gate; `--smoke`
+//! runs each row once.
 const std = @import("std");
 const shakedown = @import("shakedown");
 const zmeshopt = @import("zmeshopt");
@@ -103,6 +105,11 @@ const Context = struct {
         std.mem.doNotOptimizeAway(c.destination[0]);
     }
 
+    fn vertexCacheRaw(c: *Context, n: u64) Failed!void {
+        for (0..n) |_| zmeshopt.c.cache.meshopt_optimizeVertexCache(&c.destination, &c.indices, index_count, vertex_count);
+        std.mem.doNotOptimizeAway(c.destination[0]);
+    }
+
     fn vertexCacheC(c: *Context, n: u64) Failed!void {
         baseline.zmeshopt_baseline_optimize_vertex_cache(&c.destination, &c.indices, index_count, vertex_count, n);
         std.mem.doNotOptimizeAway(c.destination[0]);
@@ -188,6 +195,7 @@ pub fn main(init: std.process.Init) !void {
         .{ .name = "coverage_shim", .unit = "mesh", .run = Context.coverageShim },
         .{ .name = "coverage_c", .unit = "mesh", .run = Context.coverageC },
         .{ .name = "vertex_cache_zig", .unit = "mesh", .run = Context.vertexCacheZig },
+        .{ .name = "vertex_cache_raw", .unit = "mesh", .run = Context.vertexCacheRaw },
         .{ .name = "vertex_cache_c", .unit = "mesh", .run = Context.vertexCacheC },
         .{ .name = "decode_indices_zig", .unit = "mesh", .initial = 10, .run = Context.decodeIndicesZig },
         .{ .name = "decode_indices_c", .unit = "mesh", .initial = 10, .run = Context.decodeIndicesC },

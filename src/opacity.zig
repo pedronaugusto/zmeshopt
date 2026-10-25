@@ -43,6 +43,7 @@ pub fn opacityMapMeasure(comptime V: type, levels: []u8, sources: []u32, omm_ind
     try failure_.held(failure, .opacity_map_measure, check.room(sources.len, triangle_count));
     try failure_.held(failure, .opacity_map_measure, check.room(omm_indices.len, triangle_count));
     try failure_.held(failure, .opacity_map_measure, check.range(max_level <= 12));
+    try failure_.bounded(failure, .opacity_map_measure, indices, uvs.len);
     return shim.zmeshopt_shim_opacityMapMeasure(target_edge, levels.ptr, sources.ptr, omm_indices.ptr, indices.ptr, indices.len, contract.floatPtr(V, uvs), uvs.len, @sizeOf(V), texture_width, texture_height, max_level);
 }
 

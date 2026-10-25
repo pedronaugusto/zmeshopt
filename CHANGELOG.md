@@ -18,6 +18,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html); before
   assert is undefined behaviour in ReleaseFast and ReleaseSmall, where
   upstream's own asserts are compiled out too, so a short buffer was a heap
   write there. The functions that check return an error union.
+- Every call that takes indices with a count of what they index refuses an
+  index at or past it with `error.OutOfRange`, and the frame
+  (`.index_out_of_range`) carries the first one's position in `at`.
+  Upstream reads or writes at each index and only asserts the bound, so in
+  ReleaseFast and ReleaseSmall a bad index from an untrusted mesh was an
+  out-of-bounds access. This covers the meshlet-local indices
+  (`optimizeMeshlet`, `optimizeMeshletLevel`, `computeMeshletBounds`) and
+  `remapVertexBuffer`'s table, whose entries must fit `destination` or be
+  unused (`~0`): its destination was not checked at all.
+  `analyzeVertexFetch` and `optimizeVertexFetchRemap` take a `*Failure` and
+  return an error union, and `remapIndexBuffer` without indices checks the
+  remap table holds `destination.len` entries.
 - `quantizeFloat`, `quantizeUnorm` and `quantizeSnorm` take `bits` at
   compile time, and a count outside the range is a compile error.
 - The decoders take their bytes as `zmeshopt.Encoded`, aegis's mark for

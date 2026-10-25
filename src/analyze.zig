@@ -20,13 +20,15 @@ pub const CoverageStatistics = c.CoverageStatistics;
 /// `warp_size` and `primgroup_size` may be 0 to skip those models.
 pub fn analyzeVertexCache(indices: []const u32, vertex_count: usize, cache_size: u32, warp_size: u32, primgroup_size: u32, failure: *failure_.Failure) failure_.Error!VertexCacheStatistics {
     try failure_.held(failure, .analyze_vertex_cache, check.triangles(indices.len));
+    try failure_.bounded(failure, .analyze_vertex_cache, indices, vertex_count);
     return c.meshopt_analyzeVertexCache(indices.ptr, indices.len, vertex_count, cache_size, warp_size, primgroup_size);
 }
 
 /// Vertex fetch statistics under a simplified direct-mapped cache model,
 /// for a buffer of `vertex_count` vertices of type `V`.
-pub fn analyzeVertexFetch(comptime V: type, indices: []const u32, vertex_count: usize) VertexFetchStatistics {
+pub fn analyzeVertexFetch(comptime V: type, indices: []const u32, vertex_count: usize, failure: *failure_.Failure) failure_.Error!VertexFetchStatistics {
     contract.checkVertexSize(V);
+    try failure_.bounded(failure, .analyze_vertex_fetch, indices, vertex_count);
     return c.meshopt_analyzeVertexFetch(indices.ptr, indices.len, vertex_count, @sizeOf(V));
 }
 
@@ -35,6 +37,7 @@ pub fn analyzeVertexFetch(comptime V: type, indices: []const u32, vertex_count: 
 pub fn analyzeOverdraw(comptime V: type, indices: []const u32, vertices: []const V, failure: *failure_.Failure) failure_.Error!OverdrawStatistics {
     contract.checkVertex(V, 3);
     try failure_.held(failure, .analyze_overdraw, check.triangles(indices.len));
+    try failure_.bounded(failure, .analyze_overdraw, indices, vertices.len);
     return c.meshopt_analyzeOverdraw(indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V));
 }
 
@@ -45,6 +48,7 @@ pub fn analyzeCoverage(comptime V: type, indices: []const u32, vertices: []const
     try failure_.held(failure, .analyze_coverage, check.triangles(indices.len));
     // Out-parameter crossing via src/abi_shim.c: the all-float by-value
     // return is a measured self-hosted-backend miscompile (src/shim.zig).
+    try failure_.bounded(failure, .analyze_coverage, indices, vertices.len);
     var stats: CoverageStatistics = undefined;
     shim.zmeshopt_shim_analyzeCoverage(&stats, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V));
     return stats;
@@ -61,8 +65,9 @@ test analyzeVertexCache {
 }
 
 test analyzeVertexFetch {
+    var failure: failure_.Failure = .{};
     const indices = [_]u32{ 0, 1, 2 };
-    const stats = analyzeVertexFetch([3]f32, &indices, 3);
+    const stats = try analyzeVertexFetch([3]f32, &indices, 3, &failure);
     try std.testing.expect(stats.bytes_fetched >= 3 * @sizeOf([3]f32));
     try std.testing.expect(stats.overfetch >= 1.0);
 }

@@ -21,6 +21,7 @@ pub const RemapCallback = c.RemapCallback;
 pub fn generateVertexRemap(comptime V: type, destination: []u32, indices: ?[]const u32, vertices: []const V, failure: *failure_.Failure) failure_.Error!usize {
     contract.checkVertexSize(V);
     try failure_.held(failure, .generate_vertex_remap, check.same(destination.len, vertices.len));
+    if (indices) |ix| try failure_.bounded(failure, .generate_vertex_remap, ix, vertices.len);
     const index_count = if (indices) |ix| ix.len else vertices.len;
     return c.meshopt_generateVertexRemap(destination.ptr, if (indices) |ix| ix.ptr else null, index_count, vertices.ptr, vertices.len, @sizeOf(V));
 }
@@ -40,6 +41,7 @@ fn streamsSupported(streams: []const Stream) bool {
 /// `destination.len` is the vertex count.
 pub fn generateVertexRemapMulti(destination: []u32, indices: ?[]const u32, streams: []const Stream, failure: *failure_.Failure) failure_.Error!usize {
     try failure_.held(failure, .generate_vertex_remap_multi, check.range(streamsSupported(streams)));
+    if (indices) |ix| try failure_.bounded(failure, .generate_vertex_remap_multi, ix, destination.len);
     const index_count = if (indices) |ix| ix.len else destination.len;
     return c.meshopt_generateVertexRemapMulti(destination.ptr, if (indices) |ix| ix.ptr else null, index_count, destination.len, streams.ptr, streams.len);
 }
@@ -49,6 +51,7 @@ pub fn generateVertexRemapMulti(destination: []u32, indices: ?[]const u32, strea
 pub fn generateVertexRemapCustom(comptime V: type, destination: []u32, indices: ?[]const u32, vertices: []const V, callback: ?RemapCallback, context: ?*anyopaque, failure: *failure_.Failure) failure_.Error!usize {
     contract.checkVertex(V, 3);
     try failure_.held(failure, .generate_vertex_remap_custom, check.same(destination.len, vertices.len));
+    if (indices) |ix| try failure_.bounded(failure, .generate_vertex_remap_custom, ix, vertices.len);
     const index_count = if (indices) |ix| ix.len else vertices.len;
     return c.meshopt_generateVertexRemapCustom(destination.ptr, if (indices) |ix| ix.ptr else null, index_count, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), callback, context);
 }
@@ -58,6 +61,7 @@ pub fn generateVertexRemapCustom(comptime V: type, destination: []u32, indices: 
 pub fn remapVertexBuffer(comptime V: type, destination: []V, vertices: []const V, remap: []const u32, failure: *failure_.Failure) failure_.Error!void {
     contract.checkVertexSize(V);
     try failure_.held(failure, .remap_vertex_buffer, check.same(remap.len, vertices.len));
+    try failure_.boundedRemap(failure, .remap_vertex_buffer, remap, destination.len);
     c.meshopt_remapVertexBuffer(destination.ptr, vertices.ptr, vertices.len, @sizeOf(V), remap.ptr);
 }
 
@@ -65,6 +69,7 @@ pub fn remapVertexBuffer(comptime V: type, destination: []V, vertices: []const V
 /// identity sequence (unindexed input). `destination.len` is the index count.
 pub fn remapIndexBuffer(destination: []u32, indices: ?[]const u32, remap: []const u32, failure: *failure_.Failure) failure_.Error!void {
     if (indices) |ix| try failure_.held(failure, .remap_index_buffer, check.same(ix.len, destination.len));
+    if (indices) |ix| try failure_.bounded(failure, .remap_index_buffer, ix, remap.len) else try failure_.held(failure, .remap_index_buffer, check.room(remap.len, destination.len));
     c.meshopt_remapIndexBuffer(destination.ptr, if (indices) |ix| ix.ptr else null, destination.len, remap.ptr);
 }
 
@@ -77,6 +82,7 @@ pub fn filterIndexBuffer(comptime V: type, destination: []u32, indices: []const 
     try failure_.held(failure, .filter_index_buffer, check.room(key_bytes, 1));
     try failure_.held(failure, .filter_index_buffer, check.range(key_bytes <= 256));
     try failure_.held(failure, .filter_index_buffer, check.range(key_bytes <= @sizeOf(V)));
+    try failure_.bounded(failure, .filter_index_buffer, indices, vertices.len);
     return c.meshopt_filterIndexBuffer(destination.ptr, indices.ptr, indices.len, vertices.ptr, vertices.len, key_bytes, @sizeOf(V));
 }
 
@@ -86,6 +92,7 @@ pub fn filterIndexBufferMulti(destination: []u32, indices: []const u32, vertex_c
     try failure_.held(failure, .filter_index_buffer_multi, check.triangles(indices.len));
     try failure_.held(failure, .filter_index_buffer_multi, check.room(destination.len, indices.len));
     try failure_.held(failure, .filter_index_buffer_multi, check.range(streamsSupported(streams)));
+    try failure_.bounded(failure, .filter_index_buffer_multi, indices, vertex_count);
     return c.meshopt_filterIndexBufferMulti(destination.ptr, indices.ptr, indices.len, vertex_count, streams.ptr, streams.len);
 }
 
@@ -98,6 +105,7 @@ pub fn generateShadowIndexBuffer(comptime V: type, destination: []u32, indices: 
     try failure_.held(failure, .generate_shadow_index_buffer, check.room(key_bytes, 1));
     try failure_.held(failure, .generate_shadow_index_buffer, check.range(key_bytes <= 256));
     try failure_.held(failure, .generate_shadow_index_buffer, check.range(key_bytes <= @sizeOf(V)));
+    try failure_.bounded(failure, .generate_shadow_index_buffer, indices, vertices.len);
     c.meshopt_generateShadowIndexBuffer(destination.ptr, indices.ptr, indices.len, vertices.ptr, vertices.len, key_bytes, @sizeOf(V));
 }
 
@@ -106,6 +114,7 @@ pub fn generateShadowIndexBufferMulti(destination: []u32, indices: []const u32, 
     try failure_.held(failure, .generate_shadow_index_buffer_multi, check.triangles(indices.len));
     try failure_.held(failure, .generate_shadow_index_buffer_multi, check.room(destination.len, indices.len));
     try failure_.held(failure, .generate_shadow_index_buffer_multi, check.range(streamsSupported(streams)));
+    try failure_.bounded(failure, .generate_shadow_index_buffer_multi, indices, vertex_count);
     c.meshopt_generateShadowIndexBufferMulti(destination.ptr, indices.ptr, indices.len, vertex_count, streams.ptr, streams.len);
 }
 
@@ -123,6 +132,7 @@ pub fn generateAdjacencyIndexBuffer(comptime V: type, destination: []u32, indice
     contract.checkVertex(V, 3);
     try failure_.held(failure, .generate_adjacency_index_buffer, check.triangles(indices.len));
     try failure_.held(failure, .generate_adjacency_index_buffer, check.room(destination.len, indices.len * 2));
+    try failure_.bounded(failure, .generate_adjacency_index_buffer, indices, vertices.len);
     c.meshopt_generateAdjacencyIndexBuffer(destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V));
 }
 
@@ -132,6 +142,7 @@ pub fn generateTessellationIndexBuffer(comptime V: type, destination: []u32, ind
     contract.checkVertex(V, 3);
     try failure_.held(failure, .generate_tessellation_index_buffer, check.triangles(indices.len));
     try failure_.held(failure, .generate_tessellation_index_buffer, check.room(destination.len, indices.len * 4));
+    try failure_.bounded(failure, .generate_tessellation_index_buffer, indices, vertices.len);
     c.meshopt_generateTessellationIndexBuffer(destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V));
 }
 
@@ -142,6 +153,7 @@ pub fn generateProvokingIndexBuffer(destination: []u32, reorder: []u32, indices:
     try failure_.held(failure, .generate_provoking_index_buffer, check.triangles(indices.len));
     try failure_.held(failure, .generate_provoking_index_buffer, check.room(destination.len, indices.len));
     try failure_.held(failure, .generate_provoking_index_buffer, check.room(reorder.len, vertex_count + indices.len / 3));
+    try failure_.bounded(failure, .generate_provoking_index_buffer, indices, vertex_count);
     const n = c.meshopt_generateProvokingIndexBuffer(destination.ptr, reorder.ptr, indices.ptr, indices.len, vertex_count);
     return reorder[0..n];
 }
@@ -226,4 +238,29 @@ test "a remap table of the wrong length is refused" {
     const vertices = [_][3]f32{ .{ 0, 0, 0 }, .{ 1, 0, 0 }, .{ 0, 1, 0 } };
     var remap: [2]u32 = undefined;
     try std.testing.expectError(error.LengthMismatch, generateVertexRemap([3]f32, &remap, null, &vertices, &failure));
+}
+
+test "an index past the vertices of an optional index buffer is refused, naming its position" {
+    var failure: failure_.Failure = .{};
+    const storage = [_][3]f32{ .{ 0, 0, 0 }, .{ 1, 0, 0 }, .{ 0, 1, 0 }, .{ 1, 1, 0 } };
+    var destination: [3]u32 = undefined;
+    try std.testing.expectError(error.OutOfRange, generateVertexRemap([3]f32, &destination, &.{ 0, 1, 3 }, storage[0..3], &failure));
+    try std.testing.expectEqualSlices(failure_.Frame, &.{.{ .call = .generate_vertex_remap, .reason = .index_out_of_range, .at = 2 }}, failure.frames());
+}
+
+test "a remap entry past the destination is refused, naming its position, and an unused one is not" {
+    var failure: failure_.Failure = .{};
+    const vertices = [_]u32{ 7, 8, 9 };
+    var storage: [3]u32 = undefined;
+    try remapVertexBuffer(u32, storage[0..2], &vertices, &.{ 1, std.math.maxInt(u32), 0 }, &failure);
+    try std.testing.expectError(error.OutOfRange, remapVertexBuffer(u32, storage[0..2], &vertices, &.{ 1, std.math.maxInt(u32), 2 }, &failure));
+    try std.testing.expectEqualSlices(failure_.Frame, &.{.{ .call = .remap_vertex_buffer, .reason = .index_out_of_range, .at = 2 }}, failure.frames());
+}
+
+test "an index past the remap table is refused, naming its position" {
+    var failure: failure_.Failure = .{};
+    const storage = [_]u32{ 0, 1, 2, 3 };
+    var destination: [3]u32 = undefined;
+    try std.testing.expectError(error.OutOfRange, remapIndexBuffer(&destination, &.{ 0, 1, 3 }, storage[0..3], &failure));
+    try std.testing.expectEqualSlices(failure_.Frame, &.{.{ .call = .remap_index_buffer, .reason = .index_out_of_range, .at = 2 }}, failure.frames());
 }

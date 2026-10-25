@@ -106,7 +106,8 @@ compiles the vendored C++.
   name minus `meshopt_`: counts come from slices, and vertex streams are a
   `comptime` vertex type whose stride the compiler checks.
 - Upstream's preconditions, which upstream only asserts, are checked before
-  every call in every build. A call that refuses returns `zmeshopt.Error`
+  every call in every build, every index below the count of what it
+  indexes among them. A call that refuses returns `zmeshopt.Error`
   and pushes a frame onto the caller's `zmeshopt.Failure` naming the call
   and the reason, a decoder's telling apart a foreign header, truncated
   bytes and an encoding that does not end where the bytes do.

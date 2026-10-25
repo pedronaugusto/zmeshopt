@@ -23,6 +23,7 @@ pub fn spatialSortTriangles(comptime V: type, destination: []u32, indices: []con
     contract.checkVertex(V, 3);
     try failure_.held(failure, .spatial_sort_triangles, check.triangles(indices.len));
     try failure_.held(failure, .spatial_sort_triangles, check.room(destination.len, indices.len));
+    try failure_.bounded(failure, .spatial_sort_triangles, indices, vertices.len);
     c.meshopt_spatialSortTriangles(destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V));
 }
 
