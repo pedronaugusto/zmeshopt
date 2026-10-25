@@ -18,5 +18,6 @@ pub fn main() !void {
     var encoded_buffer: [128]u8 = undefined;
     const encoded = try zmeshopt.encodeIndexBuffer(&encoded_buffer, &indices);
     var decoded: [6]u32 = undefined;
-    try zmeshopt.decodeIndexBuffer(u32, &decoded, encoded);
+    var failure: zmeshopt.Failure = .{};
+    try zmeshopt.decodeIndexBuffer(u32, &decoded, .init(encoded), &failure);
 }

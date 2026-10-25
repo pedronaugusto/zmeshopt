@@ -5,6 +5,8 @@
 //! `V` should have none (or keep it zero-initialized).
 
 const std = @import("std");
+const aegis = @import("aegis");
+const failure_ = @import("failure.zig");
 const c = @import("c.zig").vertex_codec;
 
 /// Vertex codec format version (`meshopt_encodeVertexVersion` values).
@@ -16,7 +18,6 @@ pub const VertexCodecVersion = enum(c_int) {
 };
 
 pub const EncodeError = error{BufferTooSmall};
-pub const DecodeError = error{Malformed};
 
 fn checkCodecVertex(comptime V: type) void {
     comptime if (@sizeOf(V) % 4 != 0 or @sizeOf(V) > 256) @compileError("zmeshopt: the vertex codec requires a vertex size that is a " ++
@@ -58,17 +59,18 @@ pub fn encodeVertexVersion(version: VertexCodecVersion) void {
 
 /// Decodes an encoded vertex buffer. Safe on untrusted input, but may produce
 /// garbage vertex data.
-pub fn decodeVertexBuffer(comptime V: type, destination: []V, buffer: []const u8) DecodeError!void {
+pub fn decodeVertexBuffer(comptime V: type, destination: []V, encoded: failure_.Encoded, failure: *failure_.Failure) error{Malformed}!void {
     checkCodecVertex(V);
-    if (c.meshopt_decodeVertexBuffer(destination.ptr, destination.len, @sizeOf(V), buffer.ptr, buffer.len) != 0)
-        return error.Malformed;
+    const bytes = encoded.readForParse();
+    try failure_.decoded(failure, .decode_vertex_buffer, c.meshopt_decodeVertexBuffer(destination.ptr, destination.len, @sizeOf(V), bytes.ptr, bytes.len));
 }
 
 /// The format version of an encoded vertex buffer, or null if the header is
 /// invalid. Non-null does not guarantee decodability.
-pub fn decodeVertexVersion(buffer: []const u8) ?u32 {
-    const v = c.meshopt_decodeVertexVersion(buffer.ptr, buffer.len);
-    return if (v < 0) null else @intCast(v);
+pub fn decodeVertexVersion(encoded: failure_.Encoded) ?u32 {
+    const bytes = encoded.readForParse();
+    // Upstream returns -1 for a header it does not read.
+    return aegis.int.cast(u32, c.meshopt_decodeVertexVersion(bytes.ptr, bytes.len)) catch null;
 }
 
 test encodeVertexBuffer {
@@ -83,12 +85,14 @@ test encodeVertexBuffer {
     try std.testing.expect(encoded.len <= encodeVertexBufferBound(Vertex, vertices.len));
 
     var decoded: [3]Vertex = undefined;
-    try decodeVertexBuffer(Vertex, &decoded, encoded);
+    var failure: failure_.Failure = .{};
+    try decodeVertexBuffer(Vertex, &decoded, .init(encoded), &failure);
     try std.testing.expectEqualSlices(u8, std.mem.sliceAsBytes(&vertices), std.mem.sliceAsBytes(&decoded));
 
     var tiny: [4]u8 = undefined;
     try std.testing.expectError(error.BufferTooSmall, encodeVertexBuffer(Vertex, &tiny, &vertices));
-    try std.testing.expectError(error.Malformed, decodeVertexBuffer(Vertex, &decoded, encoded[0 .. encoded.len - 1]));
+    try std.testing.expectError(error.Malformed, decodeVertexBuffer(Vertex, &decoded, .init(encoded[0 .. encoded.len - 1]), &failure));
+    try std.testing.expectEqual(failure_.Frame{ .call = .decode_vertex_buffer, .reason = .mismatched_end }, failure.frames()[0]);
 }
 
 test encodeVertexBufferLevel {
@@ -96,9 +100,10 @@ test encodeVertexBufferLevel {
     var buffer: [256]u8 = undefined;
     // Level 0/version 0 must still round-trip and report its version.
     const encoded = try encodeVertexBufferLevel([4]f32, &buffer, &vertices, 0, .v0);
-    try std.testing.expectEqual(@as(?u32, 0), decodeVertexVersion(encoded));
+    try std.testing.expectEqual(@as(?u32, 0), decodeVertexVersion(.init(encoded)));
     var decoded: [2][4]f32 = undefined;
-    try decodeVertexBuffer([4]f32, &decoded, encoded);
+    var failure: failure_.Failure = .{};
+    try decodeVertexBuffer([4]f32, &decoded, .init(encoded), &failure);
     try std.testing.expectEqualSlices(u8, std.mem.sliceAsBytes(&vertices), std.mem.sliceAsBytes(&decoded));
-    try std.testing.expectEqual(@as(?u32, null), decodeVertexVersion(&.{0xff}));
+    try std.testing.expectEqual(@as(?u32, null), decodeVertexVersion(.init(&.{0xff})));
 }

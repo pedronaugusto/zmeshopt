@@ -25,6 +25,15 @@ pub const c = @import("c.zig");
 /// What the idiomatic layer refuses before it calls upstream.
 pub const Error = @import("check.zig").Error;
 
+const failure_area = @import("failure.zig");
+/// What a refusal leaves on the caller's `Failure`.
+pub const Failure = failure_area.Failure;
+pub const Frame = failure_area.Frame;
+pub const Call = failure_area.Call;
+pub const Reason = failure_area.Reason;
+/// Encoded bytes from outside the program, which every decoder takes.
+pub const Encoded = failure_area.Encoded;
+
 const remap_area = @import("remap.zig");
 const cache_area = @import("cache.zig");
 const index_codec_area = @import("index_codec.zig");
@@ -212,7 +221,9 @@ test version {
 test {
     _ = @import("testing/abi.zig");
     _ = @import("testing/canary.zig");
+    _ = @import("testing/fuzz.zig");
     _ = @import("check.zig");
+    _ = failure_area;
     _ = @import("contract.zig");
     _ = remap_area;
     _ = cache_area;

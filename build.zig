@@ -277,6 +277,7 @@ fn suite(b: *std.Build, p: *std.Build, target: std.Build.ResolvedTarget, optimiz
             .imports = &.{
                 .{ .name = "zmeshopt_options", .module = optionsModule(b, options) },
                 .{ .name = "aegis", .module = p.dependency("aegis", .{ .target = target, .optimize = optimize }).module("aegis") },
+                .{ .name = "shakedown", .module = b.dependency("shakedown", .{ .target = target, .optimize = optimize }).module("shakedown") },
             },
         }),
     });

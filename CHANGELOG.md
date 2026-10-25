@@ -20,6 +20,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html); before
   write there. The functions that check return an error union.
 - `quantizeFloat`, `quantizeUnorm` and `quantizeSnorm` take `bits` at
   compile time, and a count outside the range is a compile error.
+- The decoders take their bytes as `zmeshopt.Encoded`, aegis's mark for
+  input from outside the program, and a `*zmeshopt.Failure` as their last
+  argument: a refusal pushes a `zmeshopt.Frame` naming the call and the
+  reason, upstream's three decoder results (`header`, `truncated`,
+  `mismatched_end`) told apart. `decodeIndexVersion` and
+  `decodeVertexVersion` take `Encoded` too.
+- `decodeMeshlet` and `decodeMeshletRaw` take the vertex and triangle
+  counts apart from their output slices, which must have the room the
+  decoder writes; see Fixed.
 
 ### Changed
 
@@ -43,6 +52,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html); before
 
 ### Fixed
 
+- `decodeMeshlet` passed each output slice's length as its count, and the
+  decoder writes whole words (`meshoptimizer.h:340-342`): an exact-size
+  slice of 16-bit references or 3-byte triangles with an odd byte count
+  was written past its end under the SIMD decoder, measured by the new
+  fuzz target's guard words. `decodeMeshletRaw` had the same shape, its
+  outputs rounded up to groups of 4 (`meshletcodec.cpp:874-883`). Both
+  now refuse outputs without that room.
 - An allocation the allocator installed by `installZigAllocator` refused
   came back to upstream as null, which upstream stores and uses unchecked
   (`meshoptimizer.h:1183-1185`): undefined behaviour. It now stops the
