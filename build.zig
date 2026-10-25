@@ -248,8 +248,14 @@ pub fn dev(b: *std.Build, tools: type) void {
     preflight.addCi(b, p, .{
         .tests = test_step,
         .hardened = .{},
+        // Each binding against the same upstream work called directly from C.
+        .bench = .{
+            .programs = &.{.{ .name = "zmeshopt-bench", .source = "bench/binding.zig" }},
+            .imports = benchImports,
+            .target = target,
+            .optimize = optimize,
+        },
     });
-    // The build a consumer gets: the module and the library, fetching nothing.
     // The build a consumer gets: the module, the library and aegis, fetching
     // nothing.
     preflight.addConsumerCheck(b, p, .{
@@ -257,6 +263,30 @@ pub fn dev(b: *std.Build, tools: type) void {
         .program = p.path("ci/consumer.zig"),
         .packages = &.{p.dependency("aegis", .{})},
     });
+}
+
+/// What the bench imports, in the mode it builds in: an imported module keeps
+/// its own mode, so a ReleaseFast bench over a Debug zmeshopt would time the
+/// Debug one. `baseline` is the bench's C twin, bench/baseline.c, compiled
+/// against the vendored header and linked to the same library.
+fn benchImports(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.lang.Optimize) []const std.Build.Module.Import {
+    const package = b.dependency("zmeshopt", .{ .target = target, .optimize = optimize });
+    const p = package.builder;
+    const baseline = b.createModule(.{
+        .root_source_file = p.path("bench/baseline.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .imports = &.{.{ .name = "zmeshopt", .module = package.module("zmeshopt") }},
+    });
+    baseline.addCMacro("MESHOPTIMIZER_NO_WRAPPERS", "");
+    baseline.addIncludePath(p.path("libs/meshoptimizer/src"));
+    baseline.addCSourceFile(.{ .file = p.path("bench/baseline.c"), .flags = &.{"-std=c99"} });
+    baseline.linkLibrary(package.artifact("zmeshopt"));
+    return b.allocator.dupe(std.Build.Module.Import, &.{
+        .{ .name = "zmeshopt", .module = package.module("zmeshopt") },
+        .{ .name = "baseline", .module = baseline },
+    }) catch @panic("OOM");
 }
 
 /// The suite, against the package's library built with `options`.

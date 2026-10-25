@@ -36,6 +36,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html); before
   counts apart from their output slices, which must have the room the
   decoder writes; see Fixed.
 
+### Added
+
+- A bench, `bay dev bench`: simplification, meshlets, coverage, vertex
+  cache order and both decoders, each through the idiomatic layer and
+  against the same upstream work looped in C (bench/baseline.c). The
+  calls the idiomatic layer routes through src/abi_shim.c get a third row
+  looping the forwarder from C, so the hop alone is the difference of two
+  rows. The gate runs every row once.
+
 ### Changed
 
 - Builds on Zig 0.17.0, which `build.zig.zon` now requires. The ABI
