@@ -26,4 +26,10 @@
             .hash = "N-V-__8AADxPIwDjyTR8ZLnwSEmQ4ANlBy86gVRpzOWqiUc0",
         },
     },
+    .dependencies = .{
+        .aegis = .{
+            .url = "git+https://github.com/pedronaugusto/aegis?ref=v0.1.18#c6fd0e2501b553af60256669df0ee15176ed21ce",
+            .hash = "aegis-0.1.18-rsxounuqCAA3bG0JhLkfilLi4zBvhm9QTeUkT1U4UBr5",
+        },
+    },
 }

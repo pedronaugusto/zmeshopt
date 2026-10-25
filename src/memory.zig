@@ -10,6 +10,7 @@
 //! on it.)
 
 const std = @import("std");
+const aegis = @import("aegis");
 const c = @import("c.zig").allocator;
 
 pub const AllocateFn = c.AllocateFn;
@@ -22,12 +23,10 @@ pub fn setAllocator(allocate: AllocateFn, deallocate: DeallocateFn) void {
     c.meshopt_setAllocator(allocate, deallocate);
 }
 
-/// Installs `allocator` as the process-wide meshoptimizer allocator via the
-/// header-prefix adapter. The allocator must outlive every subsequent
-/// meshoptimizer call — there is no way back to operator new/delete, so pass
-/// something process-lived. Same thread-safety contract as `setAllocator`;
-/// on allocation failure the callback returns null, which upstream does NOT
-/// check — treat memory exhaustion here as fatal.
+/// Installs `allocator` process-wide, permanently: it must outlive every later
+/// meshoptimizer call. Same thread-safety contract as `setAllocator`. A
+/// refusal panics, naming the size: upstream uses every allocation unchecked
+/// (`meshoptimizer.h:1183-1185`), so it cannot take a failure.
 pub fn installZigAllocator(allocator: std.mem.Allocator) void {
     installed = allocator;
     c.meshopt_setAllocator(zigAllocate, zigDeallocate);
@@ -45,9 +44,10 @@ comptime {
 }
 
 fn zigAllocate(size: usize) callconv(.c) ?*anyopaque {
-    const allocator = installed orelse return null;
-    const total = std.math.add(usize, size, header_size) catch return null;
-    const memory = allocator.alignedAlloc(u8, alignment, total) catch return null;
+    const allocator = installed orelse aegis.assert.never("the hook is installed only after `installed` is set");
+    // Upstream passes the largest size_t for a request that overflows it.
+    const total = std.math.add(usize, size, header_size) catch refused(size);
+    const memory = allocator.alignedAlloc(u8, alignment, total) catch refused(size);
     @as(*usize, @ptrCast(memory.ptr)).* = total; // safe: the block is 16-aligned and header_size >= @sizeOf(usize), checked above
     return memory.ptr + header_size;
 }
@@ -56,9 +56,16 @@ fn zigDeallocate(ptr: ?*anyopaque) callconv(.c) void {
     const p = ptr orelse return;
     const base: [*]align(alignment.toByteUnits()) u8 = @alignCast(@as([*]u8, @ptrCast(p)) - header_size); // safe: upstream hands back the pointer zigAllocate returned, header_size past a 16-aligned block
     const total = @as(*const usize, @ptrCast(base)).*; // safe: the header zigAllocate wrote at the block start
-    const allocator = installed orelse unreachable;
+    const allocator = installed orelse aegis.assert.never("upstream frees only blocks the installed hook allocated");
     allocator.free(base[0..total]);
 }
+
+/// Upstream cannot take a failed allocation, so a refusal ends the program.
+fn refused(size: usize) noreturn {
+    std.debug.panic(refusal_message, .{size});
+}
+
+const refusal_message = "zmeshopt: the installed allocator refused {d} bytes, and meshoptimizer uses every allocation unchecked (meshoptimizer.h:1183), so it cannot take a failure";
 
 /// A counting allocator over the page allocator, in static storage because
 /// the install is irreversible: whatever backs the hook must live as long as
@@ -105,4 +112,11 @@ test installZigAllocator {
     try std.testing.expect(counting.allocations > 0);
     try std.testing.expectEqual(counting.allocations, counting.deallocations);
     try std.testing.expectEqual(@as(usize, 0), counting.live_bytes);
+}
+
+test "a refusal names the size and why upstream cannot take it" {
+    var buffer: [256]u8 = undefined;
+    const message = try std.mem.print(&buffer, refusal_message, .{@as(usize, 4096)});
+    try std.testing.expect(std.mem.find(u8, message, "refused 4096 bytes") != null);
+    try std.testing.expect(std.mem.find(u8, message, "unchecked") != null);
 }

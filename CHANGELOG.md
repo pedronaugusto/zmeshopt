@@ -27,6 +27,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html); before
   URL and hash at the commit the vendor record names, and `build.zig`'s
   translation units are held to it in both directions.
 
+### Fixed
+
+- An allocation the allocator installed by `installZigAllocator` refused
+  came back to upstream as null, which upstream stores and uses unchecked
+  (`meshoptimizer.h:1183-1185`): undefined behaviour. It now stops the
+  program with a panic naming the size refused and why upstream cannot take
+  it. The adapter's unreachable branches stop in every build through
+  `aegis.assert.never`, and aegis is a dependency.
+
 ### Removed
 
 - `ci/*.sh`, `tools/` and `tests/consumer`. The consumer build is
