@@ -7,6 +7,7 @@
 
 const std = @import("std");
 const check = @import("check.zig");
+const failure_ = @import("failure.zig");
 const c = @import("c.zig").simplify;
 const contract = @import("contract.zig");
 // The four simplifiers with a late float cross through src/abi_shim.c on
@@ -60,10 +61,10 @@ fn lockPtr(vertex_lock: ?[]const VertexFlags, vertex_count: usize) check.Error!?
 /// Reduces triangle count while preserving appearance; `destination` needs
 /// `indices.len` elements worst case (NOT `target_index_count` — the
 /// simplifier may stop short on topology or `target_error`).
-pub fn simplify(comptime V: type, destination: []u32, indices: []const u32, vertices: []const V, target_index_count: usize, target_error: f32, options: Options) check.Error!Result {
+pub fn simplify(comptime V: type, destination: []u32, indices: []const u32, vertices: []const V, target_index_count: usize, target_error: f32, options: Options, failure: *failure_.Failure) failure_.Error!Result {
     contract.checkVertex(V, 3);
-    try check.triangles(indices.len);
-    try check.room(destination.len, indices.len);
+    try failure_.held(failure, .simplify, check.triangles(indices.len));
+    try failure_.held(failure, .simplify, check.room(destination.len, indices.len));
     var err: f32 = 0;
     const n = shim.zmeshopt_shim_simplify(target_error, destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), target_index_count, options, &err);
     return .{ .indices = destination[0..n], .err = err };
@@ -71,11 +72,11 @@ pub fn simplify(comptime V: type, destination: []u32, indices: []const u32, vert
 
 /// `simplify` with attribute values folded into the error metric and an
 /// optional per-vertex lock/protect/priority array.
-pub fn simplifyWithAttributes(comptime V: type, destination: []u32, indices: []const u32, vertices: []const V, attributes: ?Attributes, vertex_lock: ?[]const VertexFlags, target_index_count: usize, target_error: f32, options: Options) check.Error!Result {
+pub fn simplifyWithAttributes(comptime V: type, destination: []u32, indices: []const u32, vertices: []const V, attributes: ?Attributes, vertex_lock: ?[]const VertexFlags, target_index_count: usize, target_error: f32, options: Options, failure: *failure_.Failure) failure_.Error!Result {
     contract.checkVertex(V, 3);
-    try check.triangles(indices.len);
-    try check.room(destination.len, indices.len);
-    if (attributes) |attr| try check.range(attr.weights.len <= 32);
+    try failure_.held(failure, .simplify_with_attributes, check.triangles(indices.len));
+    try failure_.held(failure, .simplify_with_attributes, check.room(destination.len, indices.len));
+    if (attributes) |attr| try failure_.held(failure, .simplify_with_attributes, check.range(attr.weights.len <= 32));
     var err: f32 = 0;
     const n = shim.zmeshopt_shim_simplifyWithAttributes(
         target_error,
@@ -89,7 +90,7 @@ pub fn simplifyWithAttributes(comptime V: type, destination: []u32, indices: []c
         if (attributes) |attr| attr.stride else 0,
         if (attributes) |attr| attr.weights.ptr else null,
         if (attributes) |attr| attr.weights.len else 0,
-        try lockPtr(vertex_lock, vertices.len),
+        try failure_.held(failure, .simplify_with_attributes, lockPtr(vertex_lock, vertices.len)),
         target_index_count,
         options,
         &err,
@@ -100,10 +101,10 @@ pub fn simplifyWithAttributes(comptime V: type, destination: []u32, indices: []c
 /// `simplifyWithAttributes` variant that destructively updates `indices`,
 /// `vertices` and the attribute values in place for optimal appearance;
 /// the returned indices are a prefix of `indices`.
-pub fn simplifyWithUpdate(comptime V: type, indices: []u32, vertices: []V, attributes: ?MutableAttributes, vertex_lock: ?[]const VertexFlags, target_index_count: usize, target_error: f32, options: Options) check.Error!Result {
+pub fn simplifyWithUpdate(comptime V: type, indices: []u32, vertices: []V, attributes: ?MutableAttributes, vertex_lock: ?[]const VertexFlags, target_index_count: usize, target_error: f32, options: Options, failure: *failure_.Failure) failure_.Error!Result {
     contract.checkVertex(V, 3);
-    try check.triangles(indices.len);
-    if (attributes) |attr| try check.range(attr.weights.len <= 32);
+    try failure_.held(failure, .simplify_with_update, check.triangles(indices.len));
+    if (attributes) |attr| try failure_.held(failure, .simplify_with_update, check.range(attr.weights.len <= 32));
     var err: f32 = 0;
     const n = shim.zmeshopt_shim_simplifyWithUpdate(
         target_error,
@@ -116,7 +117,7 @@ pub fn simplifyWithUpdate(comptime V: type, indices: []u32, vertices: []V, attri
         if (attributes) |attr| attr.stride else 0,
         if (attributes) |attr| attr.weights.ptr else null,
         if (attributes) |attr| attr.weights.len else 0,
-        try lockPtr(vertex_lock, vertices.len),
+        try failure_.held(failure, .simplify_with_update, lockPtr(vertex_lock, vertices.len)),
         target_index_count,
         options,
         &err,
@@ -127,21 +128,21 @@ pub fn simplifyWithUpdate(comptime V: type, indices: []u32, vertices: []V, attri
 /// Sloppy simplifier: does not preserve topology, sacrifices appearance for
 /// speed. Locked vertices must be flagged consistently across all indices
 /// sharing a position; `target_error` is in [0..1].
-pub fn simplifySloppy(comptime V: type, destination: []u32, indices: []const u32, vertices: []const V, vertex_lock: ?[]const VertexFlags, target_index_count: usize, target_error: f32) check.Error!Result {
+pub fn simplifySloppy(comptime V: type, destination: []u32, indices: []const u32, vertices: []const V, vertex_lock: ?[]const VertexFlags, target_index_count: usize, target_error: f32, failure: *failure_.Failure) failure_.Error!Result {
     contract.checkVertex(V, 3);
-    try check.triangles(indices.len);
-    try check.room(destination.len, indices.len);
+    try failure_.held(failure, .simplify_sloppy, check.triangles(indices.len));
+    try failure_.held(failure, .simplify_sloppy, check.room(destination.len, indices.len));
     var err: f32 = 0;
-    const n = shim.zmeshopt_shim_simplifySloppy(target_error, destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), try lockPtr(vertex_lock, vertices.len), target_index_count, &err);
+    const n = shim.zmeshopt_shim_simplifySloppy(target_error, destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), try failure_.held(failure, .simplify_sloppy, lockPtr(vertex_lock, vertices.len)), target_index_count, &err);
     return .{ .indices = destination[0..n], .err = err };
 }
 
 /// Removes small isolated parts of the mesh; returns the surviving prefix of
 /// `destination`. `target_error` is in [0..1], relative to mesh extents.
-pub fn simplifyPrune(comptime V: type, destination: []u32, indices: []const u32, vertices: []const V, target_error: f32) check.Error![]u32 {
+pub fn simplifyPrune(comptime V: type, destination: []u32, indices: []const u32, vertices: []const V, target_error: f32, failure: *failure_.Failure) failure_.Error![]u32 {
     contract.checkVertex(V, 3);
-    try check.triangles(indices.len);
-    try check.room(destination.len, indices.len);
+    try failure_.held(failure, .simplify_prune, check.triangles(indices.len));
+    try failure_.held(failure, .simplify_prune, check.room(destination.len, indices.len));
     const n = c.meshopt_simplifyPrune(destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), target_error);
     return destination[0..n];
 }
@@ -189,9 +190,10 @@ fn gridMesh(comptime n: usize) struct { vertices: [(n + 1) * (n + 1)][3]f32, ind
 }
 
 test simplify {
+    var failure: failure_.Failure = .{};
     const mesh = gridMesh(8);
     var destination: [mesh.indices.len]u32 = undefined;
-    const result = try simplify([3]f32, &destination, &mesh.indices, &mesh.vertices, 6, 1e-2, .{});
+    const result = try simplify([3]f32, &destination, &mesh.indices, &mesh.vertices, 6, 1e-2, .{}, &failure);
     // A flat grid collapses hard; the result must honor the worst case
     // bound, stay triangles, and reference real vertices.
     try std.testing.expect(result.indices.len <= mesh.indices.len);
@@ -202,6 +204,7 @@ test simplify {
 }
 
 test simplifyWithAttributes {
+    var failure: failure_.Failure = .{};
     const mesh = gridMesh(4);
     // One attribute (all equal), weight 1: must not prevent full collapse.
     var attribute_values: [mesh.vertices.len]f32 = @splat(0.5);
@@ -210,28 +213,31 @@ test simplifyWithAttributes {
         .values = &attribute_values,
         .stride = @sizeOf(f32),
         .weights = &.{1.0},
-    }, null, 6, 1e-2, .{});
+    }, null, 6, 1e-2, .{}, &failure);
     try std.testing.expect(result.indices.len < mesh.indices.len);
     try std.testing.expectEqual(@as(usize, 0), result.indices.len % 3);
 }
 
 test simplifyWithUpdate {
+    var failure: failure_.Failure = .{};
     var mesh = gridMesh(4);
     const original_len = mesh.indices.len;
-    const result = try simplifyWithUpdate([3]f32, &mesh.indices, &mesh.vertices, null, null, 6, 1e-2, .{});
+    const result = try simplifyWithUpdate([3]f32, &mesh.indices, &mesh.vertices, null, null, 6, 1e-2, .{}, &failure);
     try std.testing.expect(result.indices.len < original_len);
     try std.testing.expectEqual(@as(usize, 0), result.indices.len % 3);
 }
 
 test simplifySloppy {
+    var failure: failure_.Failure = .{};
     const mesh = gridMesh(8);
     var destination: [mesh.indices.len]u32 = undefined;
-    const result = try simplifySloppy([3]f32, &destination, &mesh.indices, &mesh.vertices, null, 12, 0.5);
+    const result = try simplifySloppy([3]f32, &destination, &mesh.indices, &mesh.vertices, null, 12, 0.5, &failure);
     try std.testing.expect(result.indices.len <= mesh.indices.len);
     try std.testing.expectEqual(@as(usize, 0), result.indices.len % 3);
 }
 
 test simplifyPrune {
+    var failure: failure_.Failure = .{};
     // A big quad and a tiny sliver triangle beside it: relative to the mesh
     // extents the quad is large and survives, the sliver is pruned.
     const vertices = [_][3]f32{
@@ -240,7 +246,7 @@ test simplifyPrune {
     };
     const indices = [_]u32{ 0, 1, 2, 1, 3, 2, 4, 5, 6 };
     var destination: [indices.len]u32 = undefined;
-    const kept = try simplifyPrune([3]f32, &destination, &indices, &vertices, 1e-2);
+    const kept = try simplifyPrune([3]f32, &destination, &indices, &vertices, 1e-2, &failure);
     try std.testing.expectEqual(@as(usize, 6), kept.len);
     for (kept) |i| try std.testing.expect(i < 4);
 }

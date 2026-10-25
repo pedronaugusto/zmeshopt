@@ -26,47 +26,51 @@ pub fn main(init: std.process.Init) !void {
     // process-wide and permanent).
     zmeshopt.installZigAllocator(std.heap.page_allocator);
 
+    // A call that refuses leaves a frame here naming the call and why.
+    var failure: zmeshopt.Failure = .{};
+
     // A 32x32 grid as unindexed triangle soup: 6144 corners, mostly shared.
     const soup = try generateGridSoup(arena, 32);
 
     // 1. Index: collapse duplicate vertices, then remap both buffers.
     const remap = try arena.alloc(u32, soup.len);
-    const unique = try zmeshopt.generateVertexRemap(Vertex, remap, null, soup);
+    const unique = try zmeshopt.generateVertexRemap(Vertex, remap, null, soup, &failure);
     const vertices = try arena.alloc(Vertex, unique);
     const indices = try arena.alloc(u32, soup.len);
-    try zmeshopt.remapVertexBuffer(Vertex, vertices, soup, remap);
-    try zmeshopt.remapIndexBuffer(indices, null, remap);
+    try zmeshopt.remapVertexBuffer(Vertex, vertices, soup, remap, &failure);
+    try zmeshopt.remapIndexBuffer(indices, null, remap, &failure);
 
     // 2. Optimize: vertex cache order, then overdraw, then fetch locality.
-    try zmeshopt.optimizeVertexCache(indices, indices, vertices.len);
-    try zmeshopt.optimizeOverdraw(Vertex, indices, indices, vertices, 1.05);
-    _ = try zmeshopt.optimizeVertexFetch(Vertex, vertices, indices, vertices);
+    try zmeshopt.optimizeVertexCache(indices, indices, vertices.len, &failure);
+    try zmeshopt.optimizeOverdraw(Vertex, indices, indices, vertices, 1.05, &failure);
+    _ = try zmeshopt.optimizeVertexFetch(Vertex, vertices, indices, vertices, &failure);
 
-    const cache = try zmeshopt.analyzeVertexCache(indices, vertices.len, 16, 0, 0);
+    const cache = try zmeshopt.analyzeVertexCache(indices, vertices.len, 16, 0, 0, &failure);
 
     // 3. Simplify: a quarter-size LOD within 1% of the mesh extents.
     const lod_buffer = try arena.alloc(u32, indices.len);
-    const lod = try zmeshopt.simplify(Vertex, lod_buffer, indices, vertices, indices.len / 4, 0.01, .{});
+    const lod = try zmeshopt.simplify(Vertex, lod_buffer, indices, vertices, indices.len / 4, 0.01, .{}, &failure);
 
     // 4. Meshlets for GPU-driven rendering.
     const max_vertices = 64;
     const max_triangles = 96;
-    const meshlet_buffer = try arena.alloc(zmeshopt.Meshlet, try zmeshopt.buildMeshletsBound(indices.len, max_vertices, max_triangles));
+    const meshlet_buffer = try arena.alloc(zmeshopt.Meshlet, try zmeshopt.buildMeshletsBound(indices.len, max_vertices, max_triangles, &failure));
     const meshlet_vertices = try arena.alloc(u32, indices.len);
     const meshlet_triangles = try arena.alloc(u8, indices.len);
-    const meshlets = try zmeshopt.buildMeshlets(Vertex, meshlet_buffer, meshlet_vertices, meshlet_triangles, indices, vertices, max_vertices, max_triangles, 0.25);
+    const meshlets = try zmeshopt.buildMeshlets(Vertex, meshlet_buffer, meshlet_vertices, meshlet_triangles, indices, vertices, max_vertices, max_triangles, 0.25, &failure);
     const bounds = try zmeshopt.computeMeshletBounds(
         Vertex,
         zmeshopt.meshletVertexSlice(meshlets[0], meshlet_vertices),
         zmeshopt.meshletTriangleSlice(meshlets[0], meshlet_triangles),
         vertices,
+        &failure,
     );
 
     // 5. Compress both buffers for storage or transmission.
     const encoded_vertices_buffer = try arena.alloc(u8, zmeshopt.encodeVertexBufferBound(Vertex, vertices.len));
-    const encoded_vertices = try zmeshopt.encodeVertexBuffer(Vertex, encoded_vertices_buffer, vertices);
-    const encoded_indices_buffer = try arena.alloc(u8, try zmeshopt.encodeIndexBufferBound(indices.len, vertices.len));
-    const encoded_indices = try zmeshopt.encodeIndexBuffer(encoded_indices_buffer, indices);
+    const encoded_vertices = try zmeshopt.encodeVertexBuffer(Vertex, encoded_vertices_buffer, vertices, &failure);
+    const encoded_indices_buffer = try arena.alloc(u8, try zmeshopt.encodeIndexBufferBound(indices.len, vertices.len, &failure));
+    const encoded_indices = try zmeshopt.encodeIndexBuffer(encoded_indices_buffer, indices, &failure);
     // --- README:usage ---
 
     var buffer: [4096]u8 = undefined;

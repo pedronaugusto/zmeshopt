@@ -29,14 +29,15 @@ const Seeds = struct {
 
     fn init() !Seeds {
         var seeds: Seeds = .{};
+        var failure: zmeshopt.Failure = .{};
         const indices = [_]u32{ 0, 1, 2, 2, 1, 3, 3, 1, 4 };
-        seeds.index_buffer_len = (try zmeshopt.encodeIndexBuffer(&seeds.index_buffer, &indices)).len;
-        seeds.index_sequence_len = (try zmeshopt.encodeIndexSequence(&seeds.index_sequence, &indices)).len;
+        seeds.index_buffer_len = (try zmeshopt.encodeIndexBuffer(&seeds.index_buffer, &indices, &failure)).len;
+        seeds.index_sequence_len = (try zmeshopt.encodeIndexSequence(&seeds.index_sequence, &indices, &failure)).len;
         const vertices = [_][4]f32{ .{ 0, 0, 0, 1 }, .{ 1, 0, 0, 1 }, .{ 0, 1, 0, 1 }, .{ 1, 1, 0, 1 }, .{ 2, 1, 0, 1 } };
-        seeds.vertex_buffer_len = (try zmeshopt.encodeVertexBuffer([4]f32, &seeds.vertex_buffer, &vertices)).len;
+        seeds.vertex_buffer_len = (try zmeshopt.encodeVertexBuffer([4]f32, &seeds.vertex_buffer, &vertices, &failure)).len;
         const references = [_]u32{ 10, 11, 12, 13, 14 };
         const triangles = [_]u8{ 0, 1, 2, 2, 1, 3, 3, 1, 4 };
-        seeds.meshlet_len = (try zmeshopt.encodeMeshlet(&seeds.meshlet, &references, &triangles)).len;
+        seeds.meshlet_len = (try zmeshopt.encodeMeshlet(&seeds.meshlet, &references, &triangles, &failure)).len;
         return seeds;
     }
 };

@@ -22,10 +22,9 @@ pub const options = @import("zmeshopt_options");
 
 pub const c = @import("c.zig");
 
-/// What the idiomatic layer refuses before it calls upstream.
-pub const Error = @import("check.zig").Error;
-
 const failure_area = @import("failure.zig");
+/// Every refusal of the idiomatic layer; the `Failure` says which call.
+pub const Error = failure_area.Error;
 /// What a refusal leaves on the caller's `Failure`.
 pub const Failure = failure_area.Failure;
 pub const Frame = failure_area.Frame;

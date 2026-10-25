@@ -26,6 +26,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html); before
   reason, upstream's three decoder results (`header`, `truncated`,
   `mismatched_end`) told apart. `decodeIndexVersion` and
   `decodeVertexVersion` take `Encoded` too.
+- Every call that can refuse takes a `*zmeshopt.Failure` as its last
+  argument and returns `zmeshopt.Error`, one set for the whole layer: a
+  refusal pushes one frame naming the call and the check, so the caller
+  learns which call refused and why without an error set per module. The
+  codecs' `EncodeError` and `DecodeError` are gone; `Malformed` is in
+  `zmeshopt.Error`.
 - `decodeMeshlet` and `decodeMeshletRaw` take the vertex and triangle
   counts apart from their output slices, which must have the room the
   decoder writes; see Fixed.

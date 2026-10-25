@@ -4,39 +4,41 @@
 
 const std = @import("std");
 const check = @import("check.zig");
+const failure_ = @import("failure.zig");
 const c = @import("c.zig").spatial;
 const contract = @import("contract.zig");
 
 /// Generates a remap table (old vertex -> new vertex) ordering points for
 /// spatial locality; apply with `remapVertexBuffer`. `destination.len` is the
 /// vertex count.
-pub fn spatialSortRemap(comptime V: type, destination: []u32, vertices: []const V) check.Error!void {
+pub fn spatialSortRemap(comptime V: type, destination: []u32, vertices: []const V, failure: *failure_.Failure) failure_.Error!void {
     contract.checkVertex(V, 3);
-    try check.same(destination.len, vertices.len);
+    try failure_.held(failure, .spatial_sort_remap, check.same(destination.len, vertices.len));
     c.meshopt_spatialSortRemap(destination.ptr, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V));
 }
 
 /// Reorders triangles for spatial locality into a new index buffer; the
 /// result can feed other optimizers such as `optimizeVertexCache`.
-pub fn spatialSortTriangles(comptime V: type, destination: []u32, indices: []const u32, vertices: []const V) check.Error!void {
+pub fn spatialSortTriangles(comptime V: type, destination: []u32, indices: []const u32, vertices: []const V, failure: *failure_.Failure) failure_.Error!void {
     contract.checkVertex(V, 3);
-    try check.triangles(indices.len);
-    try check.room(destination.len, indices.len);
+    try failure_.held(failure, .spatial_sort_triangles, check.triangles(indices.len));
+    try failure_.held(failure, .spatial_sort_triangles, check.room(destination.len, indices.len));
     c.meshopt_spatialSortTriangles(destination.ptr, indices.ptr, indices.len, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V));
 }
 
 /// Reorders points into spatial clusters of `cluster_size` (only the last
 /// chunk is smaller), writing an index buffer of `vertices.len` elements.
-pub fn spatialClusterPoints(comptime V: type, destination: []u32, vertices: []const V, cluster_size: usize) check.Error!void {
+pub fn spatialClusterPoints(comptime V: type, destination: []u32, vertices: []const V, cluster_size: usize, failure: *failure_.Failure) failure_.Error!void {
     contract.checkVertex(V, 3);
-    try check.same(destination.len, vertices.len);
+    try failure_.held(failure, .spatial_cluster_points, check.same(destination.len, vertices.len));
     c.meshopt_spatialClusterPoints(destination.ptr, contract.floatPtr(V, vertices), vertices.len, @sizeOf(V), cluster_size);
 }
 
 test spatialSortRemap {
+    var failure: failure_.Failure = .{};
     const vertices = [_][3]f32{ .{ 0, 0, 0 }, .{ 50, 0, 0 }, .{ 0.1, 0, 0 }, .{ 50.1, 0, 0 } };
     var remap: [4]u32 = undefined;
-    try spatialSortRemap([3]f32, &remap, &vertices);
+    try spatialSortRemap([3]f32, &remap, &vertices, &failure);
     // A valid remap is a permutation...
     var seen = @as([4]bool, @splat(false));
     for (remap) |i| seen[i] = true;
@@ -47,13 +49,14 @@ test spatialSortRemap {
 }
 
 test spatialSortTriangles {
+    var failure: failure_.Failure = .{};
     const vertices = [_][3]f32{
         .{ 0, 0, 0 },  .{ 1, 0, 0 },  .{ 0, 1, 0 },
         .{ 90, 0, 0 }, .{ 91, 0, 0 }, .{ 90, 1, 0 },
     };
     const indices = [_]u32{ 0, 1, 2, 3, 4, 5 };
     var sorted: [6]u32 = undefined;
-    try spatialSortTriangles([3]f32, &sorted, &indices, &vertices);
+    try spatialSortTriangles([3]f32, &sorted, &indices, &vertices, &failure);
     // Triangles stay intact (each output triple is one input triangle).
     for (0..2) |t| {
         const first = sorted[t * 3];
@@ -64,13 +67,14 @@ test spatialSortTriangles {
 }
 
 test spatialClusterPoints {
+    var failure: failure_.Failure = .{};
     var vertices: [8][3]f32 = undefined;
     for (&vertices, 0..) |*v, i| {
         const far: f32 = if (i % 2 == 1) 100 else 0;
         v.* = .{ @as(f32, @floatFromInt(i)) * 0.1 + far, 0, 0 };
     }
     var clustered: [8]u32 = undefined;
-    try spatialClusterPoints([3]f32, &clustered, &vertices, 4);
+    try spatialClusterPoints([3]f32, &clustered, &vertices, 4, &failure);
     // The first cluster of 4 is entirely one spatial group.
     const first_group = vertices[clustered[0]][0] >= 50;
     for (clustered[0..4]) |i| {

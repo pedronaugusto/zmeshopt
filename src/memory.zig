@@ -100,13 +100,14 @@ const counting = struct {
 };
 
 test installZigAllocator {
+    var failure: @import("failure.zig").Failure = .{};
     installZigAllocator(counting.allocator);
 
     // generateVertexRemap allocates its hash table through the hook.
     const vertices = [_][3]f32{ .{ 0, 0, 0 }, .{ 1, 0, 0 }, .{ 0, 1, 0 } };
     const indices = [_]u32{ 0, 1, 2 };
     var remap: [3]u32 = undefined;
-    const unique = try @import("remap.zig").generateVertexRemap([3]f32, &remap, &indices, &vertices);
+    const unique = try @import("remap.zig").generateVertexRemap([3]f32, &remap, &indices, &vertices, &failure);
     try std.testing.expectEqual(@as(usize, 3), unique);
 
     try std.testing.expect(counting.allocations > 0);
