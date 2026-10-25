@@ -7,6 +7,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html); before
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-25
+
 ### Breaking
 
 - Every precondition the idiomatic layer held with `std.debug.assert` is
@@ -89,6 +91,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html); before
   URL and hash at the commit the vendor record names, and `build.zig`'s
   translation units are held to it in both directions.
 
+### Removed
+
+- `ci/*.sh`, `tools/` and `tests/consumer`. The consumer build is
+  preflight's consumer check over `ci/consumer.zig`; the C consumer is the C
+  smoke test, which links the same artifact.
+- `docs/` from the package's paths: no consumer's build reads it.
+
 ### Fixed
 
 - `decodeMeshlet` passed each output slice's length as its count, and the
@@ -104,13 +113,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html); before
   program with a panic naming the size refused and why upstream cannot take
   it. The adapter's unreachable branches stop in every build through
   `aegis.assert.never`, and aegis is a dependency.
-
-### Removed
-
-- `ci/*.sh`, `tools/` and `tests/consumer`. The consumer build is
-  preflight's consumer check over `ci/consumer.zig`; the C consumer is the C
-  smoke test, which links the same artifact.
-- `docs/` from the package's paths: no consumer's build reads it.
 
 ## [0.2.0] - 2026-09-04
 
@@ -215,7 +217,8 @@ header declares, the experimental surface included — with:
   the way a downstream `b.dependency` does, examples that are built AND run,
   generated README numbers, and the family CI matrix.
 
-[Unreleased]: https://github.com/pedronaugusto/zmeshopt/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/pedronaugusto/zmeshopt/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/pedronaugusto/zmeshopt/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/pedronaugusto/zmeshopt/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/pedronaugusto/zmeshopt/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/pedronaugusto/zmeshopt/releases/tag/v0.1.0
