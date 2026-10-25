@@ -42,6 +42,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html); before
 
 ### Added
 
+- An interop test against zcgltf 0.2.0: an `EXT_meshopt_compression` asset
+  through every mode and the exponential filter, encoded here, parsed by
+  zcgltf, decoded here into its views, and read back through cgltf's
+  accessors.
 - A bench, `bay dev bench`: simplification, meshlets, coverage, vertex
   cache order and both decoders, each through the idiomatic layer and
   against the same upstream work looped in C (bench/baseline.c). The

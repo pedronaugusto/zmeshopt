@@ -25,6 +25,10 @@
             .url = "git+https://github.com/zeux/meshoptimizer?ref=v1.2#9d9890c73011d75920af614485296d1e03e95448",
             .hash = "N-V-__8AADxPIwDjyTR8ZLnwSEmQ4ANlBy86gVRpzOWqiUc0",
         },
+        .zcgltf = .{
+            .url = "git+https://github.com/pedronaugusto/zcgltf?ref=v0.2.0#4afc14ae856d154b6ec7ae8fcfa62314ad741e39",
+            .hash = "zcgltf-0.2.0-SAWrEzuCBgBXbJrnWvGD-NbHQwUcIaD4U4p3YHBDOJGi",
+        },
     },
     .dependencies = .{
         .aegis = .{

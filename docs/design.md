@@ -325,7 +325,12 @@ through the build's options module.
 zmeshopt handles no file format. A glTF document carrying
 `EXT_meshopt_compression` needs a parser for its buffer views, and the host
 decodes each compressed view by its mode and filter with this package's
-decoders.
+decoders. `tests/interop.zig` runs that against zcgltf 0.2.0, a dev
+dependency: zmeshopt encodes a mesh through every mode the extension
+defines and the exponential filter, zcgltf parses an asset whose buffer
+views carry the streams, zmeshopt decodes what cgltf's metadata points at
+into each view's data, and cgltf's accessors read back the exact values
+encoded.
 
 ## The bench
 
@@ -360,7 +365,8 @@ sanitizer, without it, and with the scalar kernels under the sanitizer:
   properties;
 - the C smoke test, which includes `<meshoptimizer.h>` through the
   artifact's installed header with no Zig in the picture, the shared
-  library, the examples, built and run, and the bench, each row once.
+  library, the examples, built and run, the interop test with zcgltf, and
+  the bench, each row once.
 
 The development build reaches zmeshopt as a dependency, so the artifact,
 header and module tested are the ones a consumer gets. README.md's counts

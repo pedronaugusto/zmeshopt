@@ -183,6 +183,21 @@ pub fn dev(b: *std.Build, tools: type) void {
     test_step.dependOn(&b.addRunArtifact(c_smoke).step);
     check_step.dependOn(&c_smoke.step);
 
+    // EXT_meshopt_compression end to end against zcgltf 0.2.0: zmeshopt
+    // encodes, zcgltf parses the asset around the streams, zmeshopt decodes
+    // what cgltf's metadata points at.
+    const interop = b.addTest(.{ .name = "zmeshopt-interop", .root_module = b.createModule(.{
+        .root_source_file = p.path("tests/interop.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "zmeshopt", .module = package.module("zmeshopt") },
+            .{ .name = "zcgltf", .module = b.dependency("zcgltf", .{ .target = target, .optimize = optimize }).module("zcgltf") },
+        },
+    }) });
+    test_step.dependOn(&b.addRunArtifact(interop).step);
+    check_step.dependOn(&interop.step);
+
     // The configuration no arm above links: the shared library, which is
     // what proves the export seam.
     const shared = b.dependency("zmeshopt", .{ .target = target, .optimize = optimize, .shared = true }).artifact("zmeshopt");
