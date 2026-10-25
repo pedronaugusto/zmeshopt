@@ -180,7 +180,7 @@ test streamsSupported {
     // all, a key of 0 bytes, a key over the ceiling, a key wider than the
     // stride it is read at.
     try std.testing.expect(!streamsSupported(&.{}));
-    try std.testing.expect(!streamsSupported(&(one ** 17)));
+    try std.testing.expect(!streamsSupported(&@as([17]Stream, @splat(one[0]))));
     try std.testing.expect(!streamsSupported(&.{.{ .data = &data, .size = 0, .stride = 16 }}));
     try std.testing.expect(!streamsSupported(&.{.{ .data = &data, .size = 257, .stride = 512 }}));
     try std.testing.expect(!streamsSupported(&.{.{ .data = &data, .size = 16, .stride = 12 }}));

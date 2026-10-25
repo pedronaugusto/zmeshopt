@@ -1,6 +1,7 @@
 //! Comptime cross-check: the hand-written externs in `src/c/` against the
-//! vendored `meshoptimizer.h`, `@cImport`'d only in a test (the shipped
-//! module stays translate-c-free), compared per declaration via reflection;
+//! vendored `meshoptimizer.h`, translated by the build for the test module
+//! alone (the shipped module stays translate-c-free), compared per
+//! declaration via reflection;
 //! an unclassified declaration errors at compile time, not silently.
 //!
 //! Naming conventions are load-bearing: extern functions carry the C name
@@ -17,10 +18,7 @@ const std = @import("std");
 const c = @import("c.zig");
 const shim = @import("shim.zig");
 
-const h = @cImport({
-    @cInclude("meshoptimizer.h");
-    @cInclude("abi_shim.h");
-});
+const h = @import("meshoptimizer_h");
 
 //=============================================================================
 // Name conventions, computed rather than tabulated
@@ -171,18 +169,18 @@ fn checkFnType(
     const ours = @typeInfo(Ours).@"fn";
     const theirs = @typeInfo(Theirs).@"fn";
 
-    if (ours.params.len != theirs.params.len) {
-        fail(what ++ " takes " ++ std.fmt.comptimePrint("{d}", .{ours.params.len}) ++
-            " parameters on the Zig side but " ++ std.fmt.comptimePrint("{d}", .{theirs.params.len}) ++
+    if (ours.param_types.len != theirs.param_types.len) {
+        fail(what ++ " takes " ++ std.fmt.comptimePrint("{d}", .{ours.param_types.len}) ++
+            " parameters on the Zig side but " ++ std.fmt.comptimePrint("{d}", .{theirs.param_types.len}) ++
             " in the C header");
     }
-    if (ours.is_var_args != theirs.is_var_args) {
+    if (ours.attrs.varargs != theirs.attrs.varargs) {
         fail(what ++ " is variadic on one side of the boundary only");
     }
 
-    inline for (ours.params, theirs.params, 0..) |op, tp, i| {
-        const OP = op.type orelse fail(what ++ " has an untyped parameter on the Zig side");
-        const TP = tp.type orelse fail(what ++ " has an untyped parameter in the C header");
+    inline for (ours.param_types, theirs.param_types, 0..) |op, tp, i| {
+        const OP = op orelse fail(what ++ " has an untyped parameter on the Zig side");
+        const TP = tp orelse fail(what ++ " has an untyped parameter in the C header");
         sameScalar(
             what ++ " parameter " ++ std.fmt.comptimePrint("{d}", .{i}),
             OP,
@@ -215,8 +213,8 @@ const max_int_class_params_before_float = 6;
 fn hasLateFloat(comptime Fn: type) bool {
     comptime {
         var int_class: usize = 0;
-        for (@typeInfo(Fn).@"fn".params) |p| {
-            const P = p.type orelse continue;
+        for (@typeInfo(Fn).@"fn".param_types) |param| {
+            const P = param orelse continue;
             switch (@typeInfo(scalarIdentity(P))) {
                 .float, .vector => {
                     if (int_class > max_int_class_params_before_float) return true;
@@ -250,25 +248,25 @@ fn checkStructLayout(
         else => fail(what ++ " is a struct in src/c/ but not in meshoptimizer.h"),
     };
 
-    if (ours.fields.len != theirs.fields.len) {
-        fail(what ++ " has " ++ std.fmt.comptimePrint("{d}", .{ours.fields.len}) ++
-            " fields in src/c/ but " ++ std.fmt.comptimePrint("{d}", .{theirs.fields.len}) ++
+    if (ours.field_names.len != theirs.field_names.len) {
+        fail(what ++ " has " ++ std.fmt.comptimePrint("{d}", .{ours.field_names.len}) ++
+            " fields in src/c/ but " ++ std.fmt.comptimePrint("{d}", .{theirs.field_names.len}) ++
             " in meshoptimizer.h");
     }
 
-    inline for (ours.fields) |f| {
-        if (!@hasField(Theirs, f.name)) {
-            fail(what ++ " has field `" ++ f.name ++ "` in src/c/, which meshoptimizer.h does not");
+    inline for (ours.field_names, ours.field_types) |field_name, Field| {
+        if (!@hasField(Theirs, field_name)) {
+            fail(what ++ " has field `" ++ field_name ++ "` in src/c/, which meshoptimizer.h does not");
         }
-        if (@offsetOf(Ours, f.name) != @offsetOf(Theirs, f.name)) {
-            fail(what ++ "." ++ f.name ++ " is at byte " ++
-                std.fmt.comptimePrint("{d}", .{@offsetOf(Ours, f.name)}) ++ " in src/c/ but " ++
-                std.fmt.comptimePrint("{d}", .{@offsetOf(Theirs, f.name)}) ++ " in meshoptimizer.h");
+        if (@offsetOf(Ours, field_name) != @offsetOf(Theirs, field_name)) {
+            fail(what ++ "." ++ field_name ++ " is at byte " ++
+                std.fmt.comptimePrint("{d}", .{@offsetOf(Ours, field_name)}) ++ " in src/c/ but " ++
+                std.fmt.comptimePrint("{d}", .{@offsetOf(Theirs, field_name)}) ++ " in meshoptimizer.h");
         }
         sameScalar(
-            what ++ "." ++ f.name,
-            f.type,
-            @FieldType(Theirs, f.name),
+            what ++ "." ++ field_name,
+            Field,
+            @FieldType(Theirs, field_name),
         );
     }
 }
@@ -286,21 +284,22 @@ fn checkEnumValues(
         fail(what ++ " has no `upstream_prefix` decl, so its enumerators cannot " ++
             "be paired with the header's constants");
     }
-    inline for (@typeInfo(Ours).@"enum".fields) |f| {
-        const cname = Ours.upstream_prefix ++ pascal(f.name);
-        _ = theirDecl(cname, what ++ "." ++ f.name);
+    const info = @typeInfo(Ours).@"enum";
+    inline for (info.field_names, info.field_values) |field_name, value| {
+        const cname = Ours.upstream_prefix ++ pascal(field_name);
+        _ = theirDecl(cname, what ++ "." ++ field_name);
         // The precondition that lets sameScalar skip signedness across an
         // enum. C leaves the underlying type to the implementation, and the
         // implementations disagree; that is only unobservable while every
         // enumerator is non-negative.
-        if (f.value < 0) {
-            fail(what ++ "." ++ f.name ++ " is negative, which makes the enum's " ++
+        if (value < 0) {
+            fail(what ++ "." ++ field_name ++ " is negative, which makes the enum's " ++
                 "underlying type observable — C leaves that to the implementation " ++
                 "and MSVC and clang choose differently.");
         }
-        if (@as(i128, @field(h, cname)) != @as(i128, f.value)) {
-            fail(what ++ "." ++ f.name ++ " is " ++
-                std.fmt.comptimePrint("{d}", .{f.value}) ++ " in src/c/ but " ++ cname ++
+        if (@as(i128, @field(h, cname)) != @as(i128, value)) {
+            fail(what ++ "." ++ field_name ++ " is " ++
+                std.fmt.comptimePrint("{d}", .{value}) ++ " in src/c/ but " ++ cname ++
                 " is " ++ std.fmt.comptimePrint("{d}", .{@field(h, cname)}) ++ " in meshoptimizer.h");
         }
     }
@@ -320,21 +319,22 @@ fn checkMaskBits(
             "paired with the header's constants");
     }
     const Backing = @typeInfo(Ours).@"struct".backing_integer.?;
-    inline for (@typeInfo(Ours).@"struct".fields) |f| {
-        if (comptime std.mem.startsWith(u8, f.name, "_")) continue;
-        if (f.type != bool) {
-            fail(what ++ "." ++ f.name ++ " is not a bool, so its bit value cannot " ++
+    const fields = @typeInfo(Ours).@"struct";
+    inline for (fields.field_names, fields.field_types) |field_name, Field| {
+        if (comptime std.mem.startsWith(u8, field_name, "_")) continue;
+        if (Field != bool) {
+            fail(what ++ "." ++ field_name ++ " is not a bool, so its bit value cannot " ++
                 "be derived; give this mask an explicit check");
         }
-        const cname = Ours.upstream_prefix ++ pascal(f.name);
-        _ = theirDecl(cname, what ++ "." ++ f.name);
+        const cname = Ours.upstream_prefix ++ pascal(field_name);
+        _ = theirDecl(cname, what ++ "." ++ field_name);
 
         var one: Ours = std.mem.zeroes(Ours);
-        @field(one, f.name) = true;
+        @field(one, field_name) = true;
         const bit: Backing = @bitCast(one);
 
         if (@as(i128, @field(h, cname)) != @as(i128, bit)) {
-            fail(what ++ "." ++ f.name ++ " is bit " ++
+            fail(what ++ "." ++ field_name ++ " is bit " ++
                 std.fmt.comptimePrint("0x{x}", .{bit}) ++ " in src/c/ but " ++ cname ++
                 " is " ++ std.fmt.comptimePrint("0x{x}", .{@field(h, cname)}) ++ " in meshoptimizer.h");
         }
@@ -361,18 +361,18 @@ fn sweepOurs() Counts {
     comptime {
         var n = Counts{};
 
-        for (c.modules, 0..) |m, mi| for (@typeInfo(m).@"struct".decls) |d| {
+        for (c.modules, 0..) |m, mi| for (@typeInfo(m).@"struct".decl_names) |name| {
             // A name an EARLIER module already declared is a re-export,
             // checked once where it is declared; a re-export that stops being
             // the same declaration refuses the build.
             var earlier = false;
             for (c.modules, 0..) |other, oi| {
-                if (oi < mi and @hasDecl(other, d.name)) {
-                    if (@TypeOf(@field(other, d.name)) == type and
-                        @TypeOf(@field(m, d.name)) == type and
-                        @field(other, d.name) != @field(m, d.name))
+                if (oi < mi and @hasDecl(other, name)) {
+                    if (@TypeOf(@field(other, name)) == type and
+                        @TypeOf(@field(m, name)) == type and
+                        @field(other, name) != @field(m, name))
                     {
-                        fail("`" ++ d.name ++ "` is declared in two of src/c.zig's " ++
+                        fail("`" ++ name ++ "` is declared in two of src/c.zig's " ++
                             "modules and they are not the same declaration.");
                     }
                     earlier = true;
@@ -380,35 +380,35 @@ fn sweepOurs() Counts {
             }
             if (earlier) continue;
 
-            const Decl = @TypeOf(@field(m, d.name));
+            const Decl = @TypeOf(@field(m, name));
 
             // ---- types -----------------------------------------------------
             if (Decl == type) {
-                const Ours = @field(m, d.name);
-                const what = "type " ++ d.name;
+                const Ours = @field(m, name);
+                const what = "type " ++ name;
                 n.types += 1;
 
                 switch (@typeInfo(Ours)) {
                     .@"struct" => |s| switch (s.layout) {
                         .@"extern" => {
-                            _ = theirDecl(typeCName(d.name), what);
-                            checkStructLayout(what, Ours, @field(h, typeCName(d.name)));
-                            n.fields += s.fields.len;
+                            _ = theirDecl(typeCName(name), what);
+                            checkStructLayout(what, Ours, @field(h, typeCName(name)));
+                            n.fields += s.field_names.len;
                         },
                         .@"packed" => {
                             // A bit mask over an anonymous C enum: no header
                             // type exists, so the check is per bit.
                             checkMaskBits(what, Ours);
-                            n.enumerators += s.fields.len - 1; // minus padding
+                            n.enumerators += s.field_names.len - 1; // minus padding
                         },
                         .auto => fail(what ++ " has automatic layout, so it has no " ++
                             "defined ABI; declare it extern or packed"),
                     },
                     .@"enum" => |e| {
-                        _ = theirDecl(typeCName(d.name), what);
-                        sameSizeAndAlign(what, Ours, @field(h, typeCName(d.name)));
+                        _ = theirDecl(typeCName(name), what);
+                        sameSizeAndAlign(what, Ours, @field(h, typeCName(name)));
                         checkEnumValues(what, Ours);
-                        n.enumerators += e.fields.len;
+                        n.enumerators += e.field_names.len;
                     },
                     .pointer => {
                         // A callback alias of this binding's own. Upstream
@@ -423,7 +423,7 @@ fn sweepOurs() Counts {
                         }
                         if (hasLateFloat(fnPointee(Ours).?)) n.late_float_fns += 1;
                     },
-                    else => fail("type " ++ d.name ++ " is a " ++
+                    else => fail("type " ++ name ++ " is a " ++
                         @tagName(@typeInfo(Ours)) ++ ", which this check does not know " ++
                         "how to compare against the header"),
                 }
@@ -432,21 +432,21 @@ fn sweepOurs() Counts {
 
             // ---- functions -------------------------------------------------
             if (@typeInfo(Decl) == .@"fn") {
-                if (@typeInfo(Decl).@"fn".calling_convention == .auto) {
+                if (@typeInfo(Decl).@"fn".attrs.@"callconv" == .auto) {
                     // A Zig helper, not an extern — allowed, but not on a
                     // boundary name: the reverse sweep only checks a name
                     // exists, so a helper on an exported symbol's name would
                     // satisfy it while the extern it displaced vanishes.
-                    if (std.mem.startsWith(u8, d.name, "meshopt_")) {
-                        fail("src/c/ declares `" ++ d.name ++ "` as a Zig function, " ++
+                    if (std.mem.startsWith(u8, name, "meshopt_")) {
+                        fail("src/c/ declares `" ++ name ++ "` as a Zig function, " ++
                             "not an extern. The `meshopt_` prefix is reserved for " ++
                             "the C boundary here. Rename the helper.");
                     }
                     continue;
                 }
-                const what = "function " ++ d.name;
-                _ = theirDecl(d.name, what);
-                checkFnType(what, Decl, @TypeOf(@field(h, d.name)));
+                const what = "function " ++ name;
+                _ = theirDecl(name, what);
+                checkFnType(what, Decl, @TypeOf(@field(h, name)));
                 if (hasLateFloat(Decl)) n.late_float_fns += 1;
                 n.functions += 1;
                 continue;
@@ -454,7 +454,7 @@ fn sweepOurs() Counts {
 
             // ---- string constants (the upstream_prefix pattern lives inside
             // types, not at module level; nothing else is expected) ----------
-            fail("src/c/ declares `" ++ d.name ++ "` as a " ++ @tagName(@typeInfo(Decl)) ++
+            fail("src/c/ declares `" ++ name ++ "` as a " ++ @tagName(@typeInfo(Decl)) ++
                 ", which this check does not know how to compare. Add a case rather " ++
                 "than leaving it unchecked.");
         };
@@ -470,21 +470,21 @@ fn sweepTheirs() usize {
     comptime {
         var found: usize = 0;
 
-        for (@typeInfo(h).@"struct".decls) |d| {
+        for (@typeInfo(h).@"struct".decl_names) |name| {
             // Filter by name BEFORE touching the value: translate-c emits
             // `@compileError` declarations for system macros it cannot
             // render, and evaluating one would fail the build for a reason
             // that has nothing to do with zmeshopt.
-            if (!std.mem.startsWith(u8, d.name, "meshopt_")) continue;
-            if (@typeInfo(@TypeOf(@field(h, d.name))) != .@"fn") continue;
+            if (!std.mem.startsWith(u8, name, "meshopt_")) continue;
+            if (@typeInfo(@TypeOf(@field(h, name))) != .@"fn") continue;
 
             found += 1;
             var home: ?type = null;
             for (c.modules) |m| {
-                if (@hasDecl(m, d.name)) home = m;
+                if (@hasDecl(m, name)) home = m;
             }
             if (home == null) {
-                fail("meshoptimizer.h declares `" ++ d.name ++ "` but no module in " ++
+                fail("meshoptimizer.h declares `" ++ name ++ "` but no module in " ++
                     "src/c.zig binds it. This binding is complete by contract: " ++
                     "declare it in the module its header region names.");
             }
@@ -492,13 +492,13 @@ fn sweepTheirs() usize {
             // that actually links. The forward sweep rejects helpers on
             // boundary names first; this is the backstop, and it depends only
             // on the header.
-            const Ours = @TypeOf(@field(home.?, d.name));
+            const Ours = @TypeOf(@field(home.?, name));
             if (@typeInfo(Ours) != .@"fn") {
-                fail("meshoptimizer.h declares `" ++ d.name ++ "` but src/c/ declares " ++
+                fail("meshoptimizer.h declares `" ++ name ++ "` but src/c/ declares " ++
                     "that name as a " ++ @tagName(@typeInfo(Ours)) ++ " rather than a function");
             }
-            if (@typeInfo(Ours).@"fn".calling_convention == .auto) {
-                fail("meshoptimizer.h declares `" ++ d.name ++ "` but src/c/ declares " ++
+            if (@typeInfo(Ours).@"fn".attrs.@"callconv" == .auto) {
+                fail("meshoptimizer.h declares `" ++ name ++ "` but src/c/ declares " ++
                     "that name as a Zig function rather than an extern, so nothing " ++
                     "binds the symbol");
             }
@@ -513,19 +513,19 @@ fn sweepTheirs() usize {
 fn sweepShim() usize {
     comptime {
         var found: usize = 0;
-        for (@typeInfo(shim).@"struct".decls) |d| {
-            const Decl = @TypeOf(@field(shim, d.name));
+        for (@typeInfo(shim).@"struct".decl_names) |name| {
+            const Decl = @TypeOf(@field(shim, name));
             if (@typeInfo(Decl) != .@"fn") continue;
-            const what = "shim function " ++ d.name;
-            _ = theirDecl(d.name, what);
-            checkFnType(what, Decl, @TypeOf(@field(h, d.name)));
+            const what = "shim function " ++ name;
+            _ = theirDecl(name, what);
+            checkFnType(what, Decl, @TypeOf(@field(h, name)));
             found += 1;
         }
-        for (@typeInfo(h).@"struct".decls) |d| {
-            if (!std.mem.startsWith(u8, d.name, "zmeshopt_shim_")) continue;
-            if (@typeInfo(@TypeOf(@field(h, d.name))) != .@"fn") continue;
-            if (!@hasDecl(shim, d.name)) {
-                fail("src/abi_shim.h declares `" ++ d.name ++ "` but src/shim.zig " ++
+        for (@typeInfo(h).@"struct".decl_names) |name| {
+            if (!std.mem.startsWith(u8, name, "zmeshopt_shim_")) continue;
+            if (@typeInfo(@TypeOf(@field(h, name))) != .@"fn") continue;
+            if (!@hasDecl(shim, name)) {
+                fail("src/abi_shim.h declares `" ++ name ++ "` but src/shim.zig " ++
                     "does not bind it, so the forwarder is unreachable from Zig");
             }
         }

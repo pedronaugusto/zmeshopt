@@ -48,11 +48,11 @@ const Verdict = enum { exact, broken, unmeasured };
 // with stage2_llvm (probed; the aarch64 self-hosted backend is not a default
 // anywhere), so no stage2_aarch64 pair has ever been measured here.
 const late_float_verdict: Verdict = switch (builtin.zig_backend) {
-    .stage2_llvm => switch (builtin.os.tag) {
+    .stage2_llvm => switch (builtin.target.os.tag) {
         .linux, .macos, .windows => .exact,
         else => .unmeasured,
     },
-    .stage2_x86_64 => switch (builtin.os.tag) {
+    .stage2_x86_64 => switch (builtin.target.os.tag) {
         .windows => .exact,
         .linux => .broken,
         else => .unmeasured,
@@ -65,12 +65,12 @@ const late_float_verdict: Verdict = switch (builtin.zig_backend) {
 // a 16-byte struct through a hidden pointer rather than the float registers
 // the other ABIs use.
 const struct_return_verdict: Verdict = switch (builtin.zig_backend) {
-    .stage2_llvm => switch (builtin.os.tag) {
+    .stage2_llvm => switch (builtin.target.os.tag) {
         .windows => .exact,
         .linux, .macos => .broken,
         else => .unmeasured,
     },
-    .stage2_x86_64 => switch (builtin.os.tag) {
+    .stage2_x86_64 => switch (builtin.target.os.tag) {
         .windows => .exact,
         .linux => .broken,
         else => .unmeasured,

@@ -38,7 +38,7 @@ pub fn encodeIndexBufferBound(index_count: usize, vertex_count: usize) usize {
 /// Sets the index encoder format version. NOT thread safe: must not run
 /// concurrently with index encoding.
 pub fn encodeIndexVersion(version: IndexCodecVersion) void {
-    c.meshopt_encodeIndexVersion(@intFromEnum(version));
+    c.meshopt_encodeIndexVersion(@backingInt(version));
 }
 
 /// Decodes an encoded index buffer into `u16` or `u32` indices. Safe on

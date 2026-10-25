@@ -86,8 +86,9 @@ pub fn build(b: *std.Build) void {
     // build.zig.zon rather than against a literal of its own.
     const options_step = b.addOptions();
     options_step.addOption([]const u8, "version", @import("build.zig.zon").version);
-    inline for (std.meta.fields(@TypeOf(options))) |field| {
-        options_step.addOption(field.type, field.name, @field(options, field.name));
+    const options_info = @typeInfo(@TypeOf(options)).@"struct";
+    inline for (options_info.field_names, options_info.field_types) |name, T| {
+        options_step.addOption(T, name, @field(options, name));
     }
     const options_module = options_step.createModule();
 
@@ -186,15 +187,21 @@ pub fn build(b: *std.Build) void {
         }),
     });
     tests.root_module.linkLibrary(lib);
-    // The ABI cross-check @cImports the vendored header. Wired here, on the
-    // test module, and deliberately not on the shipped module above. No build
-    // macros go with it: nothing in the header changes shape with a define —
-    // MESHOPTIMIZER_NO_SIMD is codegen-only and MESHOPTIMIZER_NO_WRAPPERS
-    // only removes C++-side inline templates translate-c never sees.
-    tests.root_module.addIncludePath(b.path("libs/meshoptimizer/src"));
-    // src/ so the same @cImport reaches abi_shim.h — the oracle holds
-    // src/shim.zig's externs to the shim's prototypes the same way.
-    tests.root_module.addIncludePath(b.path("src"));
+    // The ABI cross-check imports the vendored header translated as
+    // `meshoptimizer_h`, through src/abi_shim.h, which includes it, so the
+    // oracle holds src/shim.zig's externs to the shim's prototypes the same
+    // way. Wired here, on the test module, and deliberately not on the
+    // shipped module above. No build macros go with it: nothing in the
+    // header changes shape with a define — MESHOPTIMIZER_NO_SIMD is
+    // codegen-only and MESHOPTIMIZER_NO_WRAPPERS only removes C++-side inline
+    // templates translate-c never sees.
+    const header = b.addTranslateC(.{
+        .root_source_file = b.path("src/abi_shim.h"),
+        .target = target,
+        .optimize = optimize,
+    });
+    header.addIncludePath(b.path("libs/meshoptimizer/src"));
+    tests.root_module.addImport("meshoptimizer_h", header.createModule());
     // The ABI canaries (see src/abi_canary_test.zig): test-only C mirrors of
     // the raw shapes Zig 0.16.0 was measured miscompiling and of the shim
     // shapes the bindings ship instead. Test module only — never in the
@@ -240,7 +247,7 @@ pub fn build(b: *std.Build) void {
     const examples_step = b.step("examples", "Build and run the examples");
     for (example_sources) |source| {
         const example = b.addExecutable(.{
-            .name = std.fs.path.stem(source),
+            .name = std.Io.Dir.path.stem(source),
             .root_module = b.createModule(.{
                 .root_source_file = b.path(source),
                 .target = target,
@@ -261,3 +268,11 @@ pub fn build(b: *std.Build) void {
 const example_sources = [_][]const u8{
     "examples/usage.zig",
 };
+
+/// The development build: `bay <step>` runs the steps added here, with the
+/// dev dependencies of build.zig.zon as `tools` (`tools.<name>` is that
+/// package's build.zig). A package that depends on this one never runs it.
+pub fn dev(b: *std.Build, tools: type) void {
+    _ = b;
+    _ = tools;
+}

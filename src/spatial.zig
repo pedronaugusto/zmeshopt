@@ -38,7 +38,7 @@ test spatialSortRemap {
     var remap: [4]u32 = undefined;
     spatialSortRemap([3]f32, &remap, &vertices);
     // A valid remap is a permutation...
-    var seen = [_]bool{false} ** 4;
+    var seen = @as([4]bool, @splat(false));
     for (remap) |i| seen[i] = true;
     for (seen) |s| try std.testing.expect(s);
     // ...and spatial neighbors land next to each other.

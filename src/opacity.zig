@@ -49,12 +49,12 @@ pub fn opacityMapMeasure(comptime V: type, levels: []u8, sources: []u32, omm_ind
 /// `opacityMapEntrySize`.
 pub fn opacityMapRasterize(result: []u8, level: u4, states: OpacityStates, uv0: *const [2]f32, uv1: *const [2]f32, uv2: *const [2]f32, texture: AlphaTexture) void {
     assert(result.len >= opacityMapEntrySize(level, states));
-    c.meshopt_opacityMapRasterize(result.ptr, level, @intFromEnum(states), @ptrCast(uv0), @ptrCast(uv1), @ptrCast(uv2), texture.data.ptr, texture.stride, texture.pitch, texture.width, texture.height);
+    c.meshopt_opacityMapRasterize(result.ptr, level, @backingInt(states), @ptrCast(uv0), @ptrCast(uv1), @ptrCast(uv2), texture.data.ptr, texture.stride, texture.pitch, texture.width, texture.height);
 }
 
 /// EXPERIMENTAL upstream: bytes one OMM entry occupies at `level`/`states`.
 pub fn opacityMapEntrySize(level: u4, states: OpacityStates) usize {
-    return c.meshopt_opacityMapEntrySize(level, @intFromEnum(states));
+    return c.meshopt_opacityMapEntrySize(level, @backingInt(states));
 }
 
 /// EXPERIMENTAL upstream: compacts and deduplicates opacity data, merging
@@ -65,7 +65,7 @@ pub fn opacityMapEntrySize(level: u4, states: OpacityStates) usize {
 /// offset plus its entry's size.
 pub fn opacityMapCompact(data: []u8, levels: []u8, offsets: []u32, omm_indices: []c_int, states: OpacityStates) usize {
     assert(offsets.len == levels.len);
-    return c.meshopt_opacityMapCompact(data.ptr, data.len, levels.ptr, offsets.ptr, levels.len, omm_indices.ptr, omm_indices.len, @intFromEnum(states));
+    return c.meshopt_opacityMapCompact(data.ptr, data.len, levels.ptr, offsets.ptr, levels.len, omm_indices.ptr, omm_indices.len, @backingInt(states));
 }
 
 test opacityMapMeasure {
@@ -83,7 +83,7 @@ test opacityMapMeasure {
 
 test opacityMapRasterize {
     // A fully opaque texture rasterizes to all-opaque 2-state bits.
-    const texture_data = [_]u8{255} ** (8 * 8);
+    const texture_data = @as([(8 * 8)]u8, @splat(255));
     const texture = AlphaTexture{ .data = &texture_data, .stride = 1, .pitch = 8, .width = 8, .height = 8 };
     const level = 2;
     const size = opacityMapEntrySize(level, .two);

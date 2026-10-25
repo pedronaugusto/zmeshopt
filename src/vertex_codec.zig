@@ -44,7 +44,7 @@ pub fn encodeVertexBufferBound(comptime V: type, vertex_count: usize) usize {
 /// `encodeVertexVersion`; levels only take effect with version 1).
 pub fn encodeVertexBufferLevel(comptime V: type, buffer: []u8, vertices: []const V, level: u2, version: ?VertexCodecVersion) EncodeError![]u8 {
     checkCodecVertex(V);
-    const v: c_int = if (version) |ver| @intFromEnum(ver) else -1;
+    const v: c_int = if (version) |ver| @backingInt(ver) else -1;
     const n = c.meshopt_encodeVertexBufferLevel(buffer.ptr, buffer.len, vertices.ptr, vertices.len, @sizeOf(V), level, v);
     if (n == 0) return error.BufferTooSmall;
     return buffer[0..n];
@@ -53,7 +53,7 @@ pub fn encodeVertexBufferLevel(comptime V: type, buffer: []u8, vertices: []const
 /// Sets the vertex encoder format version. NOT thread safe: must not run
 /// concurrently with vertex encoding.
 pub fn encodeVertexVersion(version: VertexCodecVersion) void {
-    c.meshopt_encodeVertexVersion(@intFromEnum(version));
+    c.meshopt_encodeVertexVersion(@backingInt(version));
 }
 
 /// Decodes an encoded vertex buffer. Safe on untrusted input, but may produce

@@ -63,7 +63,7 @@ test optimizeVertexCache {
     const indices = [_]u32{ 0, 1, 3, 0, 3, 2, 2, 3, 5, 2, 5, 4 };
     var optimized: [12]u32 = undefined;
     optimizeVertexCache(&optimized, &indices, 6);
-    var histogram = [_]u8{0} ** 6;
+    var histogram = @as([6]u8, @splat(0));
     for (optimized) |i| histogram[i] += 1;
     for (histogram, 0..) |n, v| {
         var expected: u8 = 0;
